@@ -14,9 +14,10 @@ import (
 	"sync"
 	"time"
 
-	dcrrates "github.com/decred/dcrdata/exchanges/v3/ratesproto"
 	"google.golang.org/grpc"
 	credentials "google.golang.org/grpc/credentials"
+
+	dcrrates "github.com/decred/dcrdata/exchanges/v3/ratesproto"
 )
 
 const (
@@ -186,13 +187,11 @@ type TokenedExchange struct {
 func (state *ExchangeBotState) VolumeOrderedExchanges() []*TokenedExchange {
 	xcList := make([]*TokenedExchange, 0, len(state.DcrBtc))
 	for token, state := range state.DcrBtc {
-		if token != "dcrdex" {
-			state.Sticks = state.StickList()
-			xcList = append(xcList, &TokenedExchange{
-				Token: token,
-				State: state,
-			})
-		}
+		state.Sticks = state.StickList()
+		xcList = append(xcList, &TokenedExchange{
+			Token: token,
+			State: state,
+		})
 	}
 	sort.Slice(xcList, func(i, j int) bool {
 		if xcList[i].Token == "binance" {
@@ -1482,7 +1481,7 @@ func (bot *ExchangeBot) aggOrderbook() *aggregateOrderbook {
 	// counted and sorted alphabetically.
 	tokens := []string{}
 	for token, xcState := range state.DcrBtc {
-		if !xcState.HasDepth() || token == "dcrdex" {
+		if !xcState.HasDepth() {
 			continue
 		}
 		tokens = append(tokens, token)
