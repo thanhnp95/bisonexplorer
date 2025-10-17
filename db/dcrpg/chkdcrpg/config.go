@@ -33,7 +33,7 @@ var (
 	defaultDcrdHost          = "localhost"
 	defaultDaemonRPCCertFile = filepath.Join(dcrdHomeDir, "rpc.cert")
 
-	dcrdataHomeDir = dcrutil.AppDataDir("dcrdata", false)
+	dcrdataHomeDir = dcrutil.AppDataDir("dcrdatatest", false)
 	dcrdataDataDir = filepath.Join(dcrdataHomeDir, defaultDataDirName)
 
 	defaultAppDirectory = dcrutil.AppDataDir("chkdcrpg", false)

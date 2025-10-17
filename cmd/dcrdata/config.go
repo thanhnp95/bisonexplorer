@@ -49,7 +49,7 @@ var btcActiveNet = &btcnetparams.MainNetParams
 var btcActiveChain = &btccfg.MainNetParams
 
 var (
-	defaultHomeDir              = dcrutil.AppDataDir("dcrdata", false)
+	defaultHomeDir              = dcrutil.AppDataDir("dcrdatatest", false)
 	defaultConfigFile           = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultLogDir               = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultDataDir              = filepath.Join(defaultHomeDir, defaultDataDirname)
