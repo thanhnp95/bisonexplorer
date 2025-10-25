@@ -186,7 +186,8 @@
    </div>
    {{if and (eq $ChainType "xmr") (eq .Coinbase false)}}
    {{if .RingCT}}
-   <div class="row px-1 my-2" data-controller="xmrtx" data-xmrtx-txid="{{.TxID}}">
+   <div data-controller="xmrtx" data-xmrtx-txid="{{.TxID}}">
+   <div class="row px-1 my-2">
       <div class="tx-tools common-card">
          <ul class="nav nav-tabs" role="tablist">
             <li role="presentation" class="active"><a href="#decode-outputs" aria-controls="decode-outputs" role="tab"
@@ -246,6 +247,28 @@
             </div>
          </div>
       </div>
+   </div>
+   <div class="row mb-3 d-none" id="decodeOutputs">
+      <div class="col-24 mt-4">
+         <h5 class="pb-2">{{len .Outputs}} Output{{if gt (len .Outputs) 1}}s{{end}}</h5>
+         <div class="br-8 b--def bgc-plain-bright pb-10">
+            <div class="btable-table-wrap maxh-none">
+               <table class="btable-table w-100">
+                  <thead>
+                     <tr class="bg-none">
+                        <th class="shrink-to-fit">#</th>
+                        <th class="addr-hash-column">Stealth address</th>
+                        <th class="text-start shrink-to-fit">Amount (XMR)</th>
+                        <th class="text-start shrink-to-fit">Output match?</th>
+                     </tr>
+                  </thead>
+                  <tbody class="bgc-white" data-xmrtx-target="decodeOutputBody">
+                  </tbody>
+               </table>
+            </div>
+         </div>
+      </div>
+   </div>
    </div>
    {{end}}
    {{end}}
@@ -352,7 +375,7 @@
       </div>
    </div>
    {{else}}
-   <div class="row mb-3">
+   <div class="row mb-3" id="mainInOut">
       <div class="col-lg-12 mt-4 mb-2">
          <h5 class="pb-2">{{len .KeyImages}} Input{{if gt (len .KeyImages) 1}}s{{end}} Consumed</h5>
          <div class="br-8 b--def bgc-plain-bright pb-10">

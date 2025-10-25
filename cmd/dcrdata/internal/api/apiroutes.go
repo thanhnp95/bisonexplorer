@@ -43,7 +43,6 @@ import (
 	"github.com/decred/dcrdata/v8/mutilchain"
 	"github.com/decred/dcrdata/v8/mutilchain/externalapi"
 	"github.com/decred/dcrdata/v8/txhelpers"
-	"github.com/decred/dcrdata/v8/xmr/xmrclient"
 	"github.com/go-chi/chi/v5"
 	ltcClient "github.com/ltcsuite/ltcd/rpcclient"
 	agents "github.com/monperrus/crawler-user-agents"
@@ -156,8 +155,8 @@ type DataSource interface {
 	GetMultichainSwapInfoData(txid, chainType string) (swapsInfo *txhelpers.TxAtomicSwaps, err error)
 	InsertToBlackList(agent, ip, note string) error
 	CheckOnBlackList(agent, ip string) (bool, error)
-	MoneroDecodeOutputs(txid, address, viewkey string) (*xmrclient.DecodedTx, error)
-	MoneroProveOutputs(txid, address, txkey string) (*xmrclient.ProveByTxKeyResult, error)
+	MoneroDecodeOutputs(txid, address, viewkey string) ([]externalapi.TxOutput, error)
+	MoneroProveOutputs(txid, address, txkey string) ([]externalapi.TxOutput, error)
 }
 
 // dcrdata application context used by all route handlers
@@ -3495,9 +3494,9 @@ func (c *appContext) MoneroDecodeOutputs(w http.ResponseWriter, r *http.Request)
 	address := r.URL.Query().Get("address")
 	viewkey := r.URL.Query().Get("viewkey")
 	type decodedData struct {
-		Error      bool                 `json:"err"`
-		Msg        string               `json:"msg"`
-		DecodeData *xmrclient.DecodedTx `json:"decodeData"`
+		Error      bool                   `json:"err"`
+		Msg        string                 `json:"msg"`
+		DecodeData []externalapi.TxOutput `json:"decodeData"`
 	}
 	if txid == "" || address == "" || viewkey == "" {
 		writeJSON(w, &decodedData{
@@ -3526,10 +3525,10 @@ func (c *appContext) MoneroProveTx(w http.ResponseWriter, r *http.Request) {
 	address := r.URL.Query().Get("address")
 	txkey := r.URL.Query().Get("txkey")
 	type proveData struct {
-		Error        bool                          `json:"err"`
-		ErrorContent string                        `json:"errorContent"`
-		Msg          string                        `json:"msg"`
-		ProveData    *xmrclient.ProveByTxKeyResult `json:"proveData"`
+		Error        bool                   `json:"err"`
+		ErrorContent string                 `json:"errorContent"`
+		Msg          string                 `json:"msg"`
+		ProveData    []externalapi.TxOutput `json:"proveData"`
 	}
 	if txid == "" || address == "" || txkey == "" {
 		writeJSON(w, &proveData{

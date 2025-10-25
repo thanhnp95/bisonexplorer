@@ -6,7 +6,6 @@ package dcrpg
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -26,9 +25,9 @@ import (
 	"github.com/decred/dcrdata/v8/db/dbtypes"
 	"github.com/decred/dcrdata/v8/mutilchain"
 	"github.com/decred/dcrdata/v8/mutilchain/btcrpcutils"
+	"github.com/decred/dcrdata/v8/mutilchain/externalapi"
 	"github.com/decred/dcrdata/v8/mutilchain/ltcrpcutils"
 	"github.com/decred/dcrdata/v8/txhelpers"
-	"github.com/decred/dcrdata/v8/xmr/xmrclient"
 )
 
 // GetLTCTransactionByHash gets a wire.MsgTx for the specified transaction hash.
@@ -433,27 +432,11 @@ func (pgb *ChainDB) SpendDetailsForFundingTx(fundHash string) ([]*apitypes.Spend
 	return addrRow, nil
 }
 
-func (pgb *ChainDB) MoneroDecodeOutputs(txid, address, viewkey string) (*xmrclient.DecodedTx, error) {
-	pgb.xmrDecodeMutex.Lock()
-	defer pgb.xmrDecodeMutex.Unlock()
-	// get tx object
-	txs, err := pgb.XmrClient.GetTransactions([]string{txid}, true)
-	if err != nil {
-		return nil, err
-	}
-	if len(txs.Txs) == 0 {
-		return nil, fmt.Errorf("XMR: txs result is empty")
-	}
-	txData := txs.Txs[0]
-	restoreBlock := txData.BlockHeight
+func (pgb *ChainDB) MoneroDecodeOutputs(txid, address, viewkey string) ([]externalapi.TxOutput, error) {
 	// call decode outputs function
-	return xmrclient.DecodeOutputs(pgb.ctx, pgb.xmrWalletCfg.xmrWalletRpc, pgb.xmrWalletCfg.xmrRpcAuth, pgb.xmrWalletCfg.xmrWalletDir,
-		address, viewkey, txid, uint64(restoreBlock), 10, 90*time.Second)
+	return externalapi.DecodeOutputs(pgb.xmrApiServ, txid, address, viewkey, false)
 }
 
-func (pgb *ChainDB) MoneroProveOutputs(txid, address, txkey string) (*xmrclient.ProveByTxKeyResult, error) {
-	pgb.xmrProveMutex.Lock()
-	defer pgb.xmrProveMutex.Unlock()
-	tempWalletName := "prove_wallet"
-	return xmrclient.ProveByTxKey(pgb.ctx, pgb.xmrWalletCfg.xmrProveRpc, pgb.xmrWalletCfg.xmrProveAuth, pgb.xmrWalletCfg.xmrProveDir, tempWalletName, txid, txkey, address)
+func (pgb *ChainDB) MoneroProveOutputs(txid, address, txkey string) ([]externalapi.TxOutput, error) {
+	return externalapi.DecodeOutputs(pgb.xmrApiServ, txid, address, txkey, true)
 }

@@ -334,6 +334,7 @@ type ChainDB struct {
 	OkLinkAPIKey           string
 	AddressSummarySyncing  bool
 	TreasurySummarySyncing bool
+	xmrApiServ             string
 	lastExplorerBlock      struct {
 		sync.Mutex
 		hash      string
@@ -370,7 +371,6 @@ type ChainDB struct {
 		// commonly retrieved when the explorer block is updated.
 		difficulties map[int64]float64
 	}
-	xmrWalletCfg              *XmrWalletRpcCfg
 	coinAgeSync               sync.Mutex
 	utxoHistorySync           sync.Mutex
 	multichainBtcMetaInfoSync sync.Mutex
@@ -380,17 +380,6 @@ type ChainDB struct {
 	xmrWholeSyncMtx           sync.Mutex
 	btc20BlocksSyncMtx        sync.Mutex
 	ltc20BlocksSyncMtx        sync.Mutex
-	xmrDecodeMutex            sync.Mutex
-	xmrProveMutex             sync.Mutex
-}
-
-type XmrWalletRpcCfg struct {
-	xmrWalletRpc string
-	xmrProveRpc  string
-	xmrRpcAuth   string
-	xmrProveAuth string
-	xmrWalletDir string
-	xmrProveDir  string
 }
 
 // ChainDeployments is mutex-protected blockchain deployment data.
@@ -583,12 +572,7 @@ type ChainDBCfg struct {
 	SyncChainDBFlag                   bool
 	XmrSyncFlag                       bool
 	OkLinkAPIKey                      string
-	XmrWalletRpc                      string
-	XmrProveRpc                       string
-	XmrRpcAuth                        string
-	XmrProveAuth                      string
-	XmrWalletDir                      string
-	XmrProveDir                       string
+	XmrTempAPIServ                    string
 }
 
 // The minimum required PostgreSQL version in integer format as returned by
@@ -878,14 +862,7 @@ func NewChainDB(ctx context.Context, cfg *ChainDBCfg, stakeDB *stakedb.StakeData
 		SyncChainDBFlag:    cfg.SyncChainDBFlag,
 		XmrSyncFlag:        cfg.XmrSyncFlag,
 		OkLinkAPIKey:       cfg.OkLinkAPIKey,
-		xmrWalletCfg: &XmrWalletRpcCfg{
-			xmrWalletRpc: cfg.XmrWalletRpc,
-			xmrProveRpc:  cfg.XmrProveRpc,
-			xmrRpcAuth:   cfg.XmrRpcAuth,
-			xmrProveAuth: cfg.XmrProveAuth,
-			xmrWalletDir: cfg.XmrWalletDir,
-			xmrProveDir:  cfg.XmrProveDir,
-		},
+		xmrApiServ:         cfg.XmrTempAPIServ,
 	}
 	chainDB.lastExplorerBlock.difficulties = make(map[int64]float64)
 	// Update the current chain state in the ChainDB

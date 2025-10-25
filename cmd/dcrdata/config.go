@@ -118,8 +118,6 @@ var (
 	defaultBinanceAPI   = "https://api.binance.com"
 	defaultOnionAddress = ""
 	defaultCoinCaps     = "btc,ltc,dcr,eth,xmr"
-	defaultXmrWalletRpc = "http://127.0.0.1:18083"
-	defaultXmrProveRpc  = "http://127.0.0.1:18084"
 
 	maxSyncStatusLimit = 5000
 )
@@ -227,13 +225,8 @@ type config struct {
 	XmrSyncDB      bool   `long:"xmrsyncdb" description:"Flag for syncing Monero to DB" env:"XMR_SYNC_DB"`
 	OkLinkKey      string `long:"oklinkkey" description:"Setting up oklink api key" env:"OKLINK_KEY"`
 
-	// xmr wallet rpc/auth
-	XmrWalletRpc string `long:"xmrwalletrpc" description:"Setting up Monero wallet rpc port" env:"XMR_WALLET_RPC"`
-	XmrProveRpc  string `long:"xmrproverpc" description:"Setting up Monero wallet rpc port for prove tx" env:"XMR_PROVE_RPC"`
-	XmrRpcAuth   string `long:"xmrrpcauth" description:"Setting up Monero wallet auth info" env:"XMR_RPC_AUTH"`
-	XmrProveAuth string `long:"xmrproveauth" description:"Setting up Monero wallet auth info for prove tx" env:"XMR_PROVE_AUTH"`
-	XmrWalletDir string `long:"xmrwalletdir" description:"Setting up Monero wallet dir on server" env:"XMR_WALLET_DIR"`
-	XmrProveDir  string `long:"xmrprovedir" description:"Setting up Monero wallet dir on server for prove tx" env:"XMR_PROVE_DIR"`
+	// xmr temp api server
+	XmrTempServ string `long:"xmrtempserv" description:"Intermediate api server supports decode output and prove tx for Monero" env:"XMR_TEMP_SERV"`
 }
 
 var (
@@ -281,8 +274,6 @@ var (
 		OnionAddress:        defaultOnionAddress,
 		BinanceAPI:          defaultBinanceAPI,
 		CoincapActive:       defaultCoinCaps,
-		XmrWalletRpc:        defaultXmrWalletRpc,
-		XmrProveRpc:         defaultXmrProveRpc,
 	}
 )
 

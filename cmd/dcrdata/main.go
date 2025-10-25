@@ -216,12 +216,7 @@ func _main(ctx context.Context) error {
 		SyncChainDBFlag:      cfg.SyncChainDB,
 		XmrSyncFlag:          cfg.XmrSyncDB,
 		OkLinkAPIKey:         cfg.OkLinkKey,
-		XmrWalletRpc:         cfg.XmrWalletRpc,
-		XmrProveRpc:          cfg.XmrProveRpc,
-		XmrRpcAuth:           cfg.XmrRpcAuth,
-		XmrProveAuth:         cfg.XmrProveAuth,
-		XmrWalletDir:         cfg.XmrWalletDir,
-		XmrProveDir:          cfg.XmrProveDir,
+		XmrTempAPIServ:       cfg.XmrTempServ,
 	}
 
 	mpChecker := rpcutils.NewMempoolAddressChecker(dcrdClient, activeChain)

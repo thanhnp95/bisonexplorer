@@ -16,7 +16,8 @@ export default class extends Controller {
     return ['inputAddress', 'inputViewKey', 'inputTxPrivateKey',
       'inputReceiptAddress', 'decodeOuputsMsg', 'proveTxMsg', 'decodePanel',
       'decodeResult', 'decodeAddressRes', 'viewkeyRes', 'totalDecodeAmount',
-      'provePanel', 'proveResult', 'proveAddressRes', 'txKeyRes', 'totalProveAmount']
+      'provePanel', 'proveResult', 'proveAddressRes', 'txKeyRes', 'totalProveAmount',
+      'decodeOutputBody']
   }
 
   async connect () {
@@ -121,7 +122,34 @@ export default class extends Controller {
     this.decodeResultTarget.classList.remove('d-none')
     this.decodeAddressResTarget.textContent = address
     this.viewkeyResTarget.textContent = this.maskMiddle(viewkey)
-    this.totalDecodeAmountTarget.textContent = (decodeData.amount / 1e12).toFixed(8)
+
+    // hide main input/outputs table
+    $('#mainInOut').addClass('d-none')
+    // show special outputs table
+    $('#decodeOutputs').removeClass('d-none')
+
+    // calculate amount for sum outputs amount
+    let sumAmount = 0
+    let outputHtml = ''
+    decodeData.forEach((output, idx) => {
+      if (output.match) {
+        sumAmount += output.amount
+      }
+      outputHtml += `<tr>
+                        <td class="shrink-to-fit ${output.match ? 'fw-bold' : ''}">${idx}</td>
+                        <td class="position-relative clipboard ${output.match ? 'fw-bold' : ''}">
+                           ${output.output_pubkey}
+                        </td>
+                        <td class="fs13 break-word shrink-to-fit ${output.match ? 'fw-bold active-color' : ''}">
+                          ${output.amount > 0 ? (output.amount / 1e12).toFixed(8) : 'N/A'} 
+                        </td>
+                        <td class="fs13 break-word shrink-to-fit ${output.match ? 'fw-bold active-color' : ''}">
+                           ${output.match}
+                        </td>
+                     </tr>`
+    })
+    this.decodeOutputBodyTarget.innerHTML = outputHtml
+    this.totalDecodeAmountTarget.textContent = (sumAmount / 1e12).toFixed(8)
   }
 
   async handlerProveTx () {
@@ -173,7 +201,34 @@ export default class extends Controller {
     this.proveResultTarget.classList.remove('d-none')
     this.proveAddressResTarget.textContent = address
     this.txKeyResTarget.textContent = this.maskMiddle(txkey)
-    this.totalProveAmountTarget.textContent = (proveData.received / 1e12).toFixed(8)
+
+    // hide main input/outputs table
+    $('#mainInOut').addClass('d-none')
+    // show special outputs table
+    $('#decodeOutputs').removeClass('d-none')
+
+    // calculate amount for sum outputs amount
+    let sumAmount = 0
+    let outputHtml = ''
+    proveData.forEach((output, idx) => {
+      if (output.match) {
+        sumAmount += output.amount
+      }
+      outputHtml += `<tr>
+                        <td class="shrink-to-fit ${output.match ? 'fw-bold' : ''}">${idx}</td>
+                        <td class="position-relative clipboard ${output.match ? 'fw-bold' : ''}">
+                           ${output.output_pubkey}
+                        </td>
+                        <td class="fs13 break-word shrink-to-fit ${output.match ? 'fw-bold active-color' : ''}">
+                          ${output.amount > 0 ? (output.amount / 1e12).toFixed(8) : 'N/A'} 
+                        </td>
+                        <td class="fs13 break-word shrink-to-fit ${output.match ? 'fw-bold active-color' : ''}">
+                           ${output.match}
+                        </td>
+                     </tr>`
+    })
+    this.decodeOutputBodyTarget.innerHTML = outputHtml
+    this.totalProveAmountTarget.textContent = (sumAmount / 1e12).toFixed(8)
   }
 
   backToDecodeInputs () {
@@ -181,6 +236,10 @@ export default class extends Controller {
     this.decodePanelTarget.classList.remove('d-none')
     this.inputAddressTarget.value = ''
     this.inputViewKeyTarget.value = ''
+    // hide result output of decode
+    $('#decodeOutputs').addClass('d-none')
+    // show main in/out table
+    $('#mainInOut').removeClass('d-none')
   }
 
   backToProveInputs () {
@@ -188,6 +247,10 @@ export default class extends Controller {
     this.provePanelTarget.classList.remove('d-none')
     this.inputTxPrivateKeyTarget.value = ''
     this.inputReceiptAddressTarget.value = ''
+    // hide result output of decode
+    $('#decodeOutputs').addClass('d-none')
+    // show main in/out table
+    $('#mainInOut').removeClass('d-none')
   }
 
   maskMiddle (s, visible = 3, maskChar = '*') {

@@ -2173,6 +2173,10 @@ hr.style-six {
   border: 1px solid #df8ddf;
 }
 
+.active-color {
+  color: #0c644e;
+}
+
 body.darkBG {
   .bgc-white {
     background-color: #3c3a3a;
@@ -2611,8 +2615,7 @@ body.darkBG {
 }
 
 @media (max-width: 1440px) {
-  .chain-selected-btn span,
-  .top-chain-selected-btn span {
+  .chain-selected-btn span {
     display: none;
   }
 
