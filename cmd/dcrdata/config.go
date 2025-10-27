@@ -124,6 +124,7 @@ var (
 
 type config struct {
 	// General application behavior
+	MainHost     string `short:"H" long:"mainhost" description:"Main host includes schema and full domain name" env:"DCRDATA_MAIN_HOST"`
 	HomeDir      string `short:"A" long:"appdata" description:"Path to application home directory" env:"DCRDATA_APPDATA_DIR"`
 	ConfigFile   string `short:"C" long:"configfile" description:"Path to configuration file" env:"DCRDATA_CONFIG_FILE"`
 	DataDir      string `short:"b" long:"datadir" description:"Directory to store data" env:"DCRDATA_DATA_DIR"`

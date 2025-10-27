@@ -21,3 +21,7 @@ Use [Tempo Rate](https://github.com/chaineco/TempoRate)
 ## Financial Reports
 - Go to /finance-report to view financial reports on Treasury spending and estimated spending for Proposals
 - Bison Explorer supports statistics of proposals containing meta data. This will include proposals approved since September 2021
+
+## Redefine index and sitemap
+- Copy the sample-sitemap.xml file in the cmd/dcrdata folder to the cmd/dcrdata/public folder. Rename it to sitemap.xml. Then set it to replace with the site's host name
+- Copy the sample-robots.txt file in the cmd/dcrdata folder to the cmd/dcrdata/public folder. Rename it to robots.txt. Then set it to replace with the site's host name

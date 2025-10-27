@@ -3,7 +3,7 @@
 <html lang="en">
 {{$ChainType := .ChainType}}
 {{$IsMainTain := .Maintain}}
-{{template "html-head" headData .CommonPageData (printf "%s Address - %s" (chainName $ChainType) .Data.Address)}}
+{{template "html-head" headData .CommonPageData (printf "%s Address Detail - %s" (chainName $ChainType) .Data.Address)}}
 {{template "mutilchain_navbar" . }}
 {{- with .Data}}
 {{- $TxnCount := add .TxnCount .NumUnconfirmed}}
