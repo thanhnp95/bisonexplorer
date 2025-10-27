@@ -1,25 +1,26 @@
 {{define "html-head"}}
 <head data-turbolinks-eval="false">
-		<meta charset="utf-8">
+	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	{{/* The above meta tags *must* come first in the head */ -}}
 	{{- if .Data.Host -}}
-	<meta name="description" content="Bison Explorer, an original Multi-chain explorer powered by Go">
-	<meta name="author" content="The mutilple blockchains developers">
-	<meta name="application-name"           content="Bison Explorer - The Mutilple Blockchain Explorer">
-	<meta name="apple-mobile-web-app-title" content="Bison Explorer - The Mutilple Blockchain Explorer">
+	<meta name="description" content="Bison Explorer, an original blockchain explorer powered by Go. {{.Title}}">
+	<meta name="author" content="The Bison Explorer developers">
+	<meta name="application-name"           content="Bison Explorer - The Multiple Blockchain Explorer">
+	<meta name="apple-mobile-web-app-title" content="Bison Explorer - The Multiple Blockchain Explorer">
 
 	<meta name="twitter:card" content="summary"/>
-	<meta name="twitter:title" content="Bison Explorer - The mutilple blockchain explorer. A product of the Decred community"/>
+	<meta name="twitter:title" content="Bison Explorer - The multiple blockchain explorer. A product of the Decred community"/>
 	<meta name="twitter:description" content="{{ .Title }}"/>
-	<meta name="twitter:image" content="/images/bisonog.PNG"/>
+	<meta name="twitter:image" content="{{ .Data.BaseURL }}/images/bisonog.PNG"/>
 
 	<meta property="og:site_name"   content="Bisonexplorer" />
-	<meta property="og:title"       content="The mutilple blockchain explorer. A product of the Decred community" />
+	<meta property="og:title"       content="The multiple blockchain explorer. A product of the Decred community" />
 	<meta property="og:description" content="{{ .Title }}" />
 	<meta property="og:type"        content="website" />
 	<meta property="og:url"         content="{{ .Data.CanonicalURL }}" />
-	<meta property="og:image"       content="/images/bisonog.PNG" />
+	<meta property="og:image"       content="{{ .Data.BaseURL }}/images/bisonog.PNG" />
+	<link rel="canonical" href="{{ .Data.CanonicalURL }}" />
 	{{- end}}
 	{{- if ne .Data.Links.OnionURL "" }}
 	<meta http-equiv="onion-location" content="http://{{.Data.Links.OnionURL}}" />

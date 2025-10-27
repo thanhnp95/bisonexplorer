@@ -3,7 +3,7 @@
 {{$ChainType := .ChainType}}
 {{$conv := .Conversions}}
 <html lang="en">
-{{template "html-head" headData .CommonPageData (printf "%s Transaction - %.20s..." (chainName $ChainType) .Data.TxID)}}
+{{template "html-head" headData .CommonPageData (printf "%s Transaction Detail - %.20s..." (chainName $ChainType) .Data.TxID)}}
 {{template "mutilchain_navbar" . }}
 {{with .Data}}
 <div class="container mt-3" data-controller="time tx" data-tx-txid="{{.TxID}}">

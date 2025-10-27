@@ -9,6 +9,8 @@ debug
 *.cert
 *.key
 cmd/dcrdata/dcrdata
+cmd/dcrdata/public/robots.txt
+cmd/dcrdata/public/sitemap.xml
 dcrdata.conf
 /vendor/
 *.orig

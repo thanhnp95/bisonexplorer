@@ -709,6 +709,7 @@ func _main(ctx context.Context) error {
 		OnionAddress:     cfg.OnionAddress,
 		ChainDisabledMap: chainDisabledMap,
 		CoinCaps:         coinCaps,
+		MainHost:         cfg.MainHost,
 	})
 	// TODO: allow views config
 	if explore == nil {
@@ -938,6 +939,12 @@ func _main(ctx context.Context) error {
 	webMux.With(explore.SyncStatusPageIntercept).Group(func(r chi.Router) {
 		r.Get("/", explore.Home)
 		r.Get("/visualblocks", explore.VisualBlocks)
+	})
+	webMux.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./public/robots.txt")
+	})
+	webMux.Get("/sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./public/sitemap.xml")
 	})
 	webMux.Get("/ws", explore.RootWebsocket)
 	webMux.Get("/ps", psHub.WebSocketHandler)

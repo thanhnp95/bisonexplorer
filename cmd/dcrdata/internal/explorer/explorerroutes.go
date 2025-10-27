@@ -4711,16 +4711,7 @@ func (exp *ExplorerUI) commonData(r *http.Request) *CommonPageData {
 	if err != nil && err != http.ErrNoCookie {
 		log.Errorf("Cookie dcrdataDarkBG retrieval error: %v", err)
 	}
-
-	scheme := r.URL.Scheme
-	if scheme == "" {
-		if r.TLS == nil {
-			scheme = "http"
-		} else {
-			scheme = "https"
-		}
-	}
-	baseURL := scheme + "://" + r.Host // assumes not opaque url
+	baseURL := exp.mainHost
 	//Get chain type
 	chainType := chi.URLParam(r, "chaintype")
 	return &CommonPageData{

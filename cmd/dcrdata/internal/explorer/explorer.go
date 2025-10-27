@@ -381,6 +381,7 @@ type ExplorerUI struct {
 	CoinCaps            []string
 	CoinCapDataList     []*dbtypes.MarketCapData
 	startSyncXMRSummary bool
+	mainHost            string
 }
 
 // AreDBsSyncing is a thread-safe way to fetch the boolean in dbsSyncing.
@@ -448,6 +449,7 @@ type ExplorerConfig struct {
 	ReloadHTML       bool
 	ChainDisabledMap map[string]bool
 	CoinCaps         []string
+	MainHost         string
 }
 
 // New returns an initialized instance of explorerUI
@@ -470,6 +472,7 @@ func New(cfg *ExplorerConfig) *ExplorerUI {
 	exp.politeiaURL = cfg.PoliteiaURL
 	exp.ChainDisabledMap = cfg.ChainDisabledMap
 	exp.CoinCaps = cfg.CoinCaps
+	exp.mainHost = cfg.MainHost
 	explorerLinks.Mainnet = cfg.MainnetLink
 	explorerLinks.Testnet = cfg.TestnetLink
 	explorerLinks.MainnetSearch = cfg.MainnetLink + "search?search="

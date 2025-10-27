@@ -1,7 +1,7 @@
 {{define "chain_charts"}}
 <!DOCTYPE html>
 <html lang="en">
-{{template "html-head" headData .CommonPageData (printf "%s Chain Charts" (chainName .ChainType))}}
+{{template "html-head" headData .CommonPageData (printf "%s Blockchain Charts" (chainName .ChainType))}}
 {{template "mutilchain_navbar" . }}
 <div data-controller="chaincharts" data-chaincharts-block-time="{{.TargetTimePerBlock}}"
    data-chaincharts-chain-type="{{.ChainType}}">
