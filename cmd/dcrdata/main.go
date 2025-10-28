@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,7 @@ import (
 	"github.com/decred/dcrdata/v8/xmr/xmrclient"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-redis/redis/v8"
 	"github.com/google/gops/agent"
 	ltcchainhash "github.com/ltcsuite/ltcd/chaincfg/chainhash"
 	ltcClient "github.com/ltcsuite/ltcd/rpcclient"
@@ -1001,6 +1003,19 @@ func _main(ctx context.Context) error {
 		r.Mount("/download", fileMux.Mux)
 	})
 
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "127.0.0.1:6379",
+	})
+
+	rlCfg := &RLConfig{
+		Rdb:                 rdb,
+		Window:              10 * time.Second,
+		PerAddressLimit:     50, // allow max 100 requests / 1 address in 10s
+		PerClientLimit:      20, // allow 20 req / client / 10s
+		JSProbeCookieName:   "js_probe_token",
+		TrustedProxyHeaders: true,
+	}
+
 	webMux.With(explore.SyncStatusPageIntercept).Group(func(r chi.Router) {
 		r.NotFound(explore.NotFound)
 		r.Mount("/explorer", explore.Mux) // legacy
@@ -1022,7 +1037,7 @@ func _main(ctx context.Context) error {
 			rd.With(explore.BlockHashPathOrIndexCtx).Get("/block/{blockhash}", explore.Block)
 			rd.With(explorer.TransactionHashCtx).Get("/tx/{txid}", explore.TxPage)
 			rd.With(explorer.TransactionHashCtx, explorer.TransactionIoIndexCtx).Get("/tx/{txid}/{inout}/{inoutid}", explore.TxPage)
-			rd.With(explorer.AddressPathCtx).Get("/address/{address}", explore.AddressPage)
+			rd.With(explorer.AddressPathCtx, LimitAddressMiddleware(rlCfg)).Get("/address/{address}", explore.AddressPage)
 			rd.With(explorer.AddressPathCtx).Get("/addresstable/{address}", explore.AddressTable)
 			rd.Get("/treasury", explore.TreasuryPage)
 			rd.Get("/treasurytable", explore.TreasuryTable)
@@ -2426,4 +2441,115 @@ func FileServer(r chi.Router, pathRoot, fsRoot string, cacheControlMaxAge int64)
 
 	// Mount the http.HandlerFunc on the pathRoot.
 	r.With(mw.CacheControl(cacheControlMaxAge)).Get(muxRoot, hf)
+}
+
+type RLConfig struct {
+	Rdb                 *redis.Client
+	Window              time.Duration // e.g., 10 * time.Second
+	PerAddressLimit     int64         // max requests to same address in window
+	PerClientLimit      int64         // max requests per client in window
+	JSProbeCookieName   string        // e.g., "js_probe_token"
+	TrustedProxyHeaders bool          // if true, try X-Forwarded-For
+}
+
+// helper to extract client identifier: js token if present, otherwise IP
+func clientIdentifier(r *http.Request, cfg *RLConfig) string {
+	// try cookie token first
+	if cfg != nil && cfg.JSProbeCookieName != "" {
+		if c, err := r.Cookie(cfg.JSProbeCookieName); err == nil && c.Value != "" {
+			return "token:" + c.Value
+		}
+	}
+	// fallback to IP
+	var ip string
+	if cfg != nil && cfg.TrustedProxyHeaders {
+		xff := r.Header.Get("X-Forwarded-For")
+		if xff != "" {
+			// take left-most (original client) - depends on proxy config
+			parts := strings.Split(xff, ",")
+			ip = strings.TrimSpace(parts[0])
+		}
+	}
+	if ip == "" {
+		// RemoteAddr like "IP:port"
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err == nil {
+			ip = host
+		} else {
+			ip = r.RemoteAddr
+		}
+	}
+	return "ip:" + ip
+}
+
+// LimitAddressMiddleware returns a chi middleware that enforces limits for /address/{address}
+func LimitAddressMiddleware(cfg *RLConfig) func(next http.Handler) http.Handler {
+	if cfg == nil || cfg.Rdb == nil {
+		// no-op middleware if misconfigured
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { next.ServeHTTP(w, r) })
+		}
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// only apply to routes that have an "address" param
+			addrParam := chi.URLParam(r, "address")
+			if addrParam == "" {
+				// not the address route, continue
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			ctx := r.Context()
+			clientID := clientIdentifier(r, cfg)
+
+			// keys
+			winSec := int64(cfg.Window.Seconds())
+			if winSec <= 0 {
+				winSec = 10 // fallback
+			}
+			addressKey := "rl:address:" + addrParam + ":global"
+			clientKey := "rl:client:" + clientID + ":window"
+
+			// increment per-address counter
+			aCount, err := cfg.Rdb.Incr(ctx, addressKey).Result()
+			if err != nil {
+				// on Redis error, be conservative: allow or block? we choose to allow to avoid outage
+				// optional: log error
+			} else if aCount == 1 {
+				// set TTL when first incremented
+				_ = cfg.Rdb.Expire(ctx, addressKey, cfg.Window).Err()
+			}
+
+			// increment per-client counter
+			cCount, err2 := cfg.Rdb.Incr(ctx, clientKey).Result()
+			if err2 == nil && cCount == 1 {
+				_ = cfg.Rdb.Expire(ctx, clientKey, cfg.Window).Err()
+			}
+
+			// Determine thresholds and response
+			// if per-address exceeds -> more severe throttling (global hot-spot)
+			if err == nil && aCount > cfg.PerAddressLimit {
+				// Option: we can also mark the address as hot for longer TTL
+				_ = cfg.Rdb.Expire(ctx, addressKey, cfg.Window*6).Err() // optional: extend
+				w.Header().Set("Retry-After", strconv.FormatInt(int64(cfg.Window.Seconds()), 10))
+				http.Error(w, "Too Many Requests (address hot)", http.StatusTooManyRequests)
+				return
+			}
+
+			// if per-client exceeds -> throttle
+			if err2 == nil && cCount > cfg.PerClientLimit {
+				w.Header().Set("Retry-After", strconv.FormatInt(int64(cfg.Window.Seconds()), 10))
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+
+			// optionally: attach debug info for logging (do not expose to end users in prod)
+			_ = cfg.Rdb.SetNX(ctx, "rl:last:"+clientKey, time.Now().Unix(), time.Minute).Err()
+
+			// everything ok -> continue
+			next.ServeHTTP(w, r)
+		})
+	}
 }

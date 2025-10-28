@@ -462,17 +462,17 @@ func (exp *ExplorerUI) Home(w http.ResponseWriter, r *http.Request) {
 		var volume24h float64
 		switch chainType {
 		case mutilchain.TYPEBTC:
-			exp.BtcPageData.RLock()
+			// exp.BtcPageData.RLock()
 			// Get fiat conversions if available
 			homeInfo = exp.BtcPageData.HomeInfo
 			volume24h = homeInfo.Volume24hFloat
-			exp.BtcPageData.RUnlock()
+			// exp.BtcPageData.RUnlock()
 		case mutilchain.TYPELTC:
-			exp.LtcPageData.RLock()
+			// exp.LtcPageData.RLock()
 			// Get fiat conversions if available
 			homeInfo = exp.LtcPageData.HomeInfo
 			volume24h = homeInfo.Volume24hFloat
-			exp.LtcPageData.RUnlock()
+			// exp.LtcPageData.RUnlock()
 		case mutilchain.TYPEXMR:
 			exp.XmrPageData.RLock()
 			// Get fiat conversions if available
@@ -624,17 +624,17 @@ func (exp *ExplorerUI) MutilchainHome(w http.ResponseWriter, r *http.Request) {
 	var poolDataList []*dbtypes.MultichainPoolDataItem
 	switch chainType {
 	case mutilchain.TYPEBTC:
-		exp.BtcPageData.RLock()
+		// exp.BtcPageData.RLock()
 		// Get fiat conversions if available
 		homeInfo = exp.BtcPageData.HomeInfo
 		poolDataList = exp.BtcPageData.BlockInfo.PoolDataList
-		exp.BtcPageData.RUnlock()
+		// exp.BtcPageData.RUnlock()
 	case mutilchain.TYPELTC:
-		exp.LtcPageData.RLock()
+		// exp.LtcPageData.RLock()
 		// Get fiat conversions if available
 		homeInfo = exp.LtcPageData.HomeInfo
 		poolDataList = exp.LtcPageData.BlockInfo.PoolDataList
-		exp.LtcPageData.RUnlock()
+		// exp.LtcPageData.RUnlock()
 	case mutilchain.TYPEXMR:
 		exp.XmrPageData.RLock()
 		// Get fiat conversions if available
