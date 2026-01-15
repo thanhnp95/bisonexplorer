@@ -8475,6 +8475,158 @@ func (pgb *ChainDB) GetAllTxOut(txid *chainhash.Hash) []*apitypes.TxOut {
 	return allTxOut
 }
 
+// GetMultichainAllTxIn gets all transaction inputs, as a slice of *apitypes.MultichainTxIn, for
+// a given chainType, transaction ID.
+func (pgb *ChainDB) GetMultichainAllTxIn(chainType string, txid string) ([]*apitypes.MultichainTxIn, error) {
+	switch chainType {
+	case mutilchain.TYPEBTC:
+		return pgb.GetBTCAllTxIn(txid)
+	case mutilchain.TYPELTC:
+		return pgb.GetLTCAllTxIn(txid)
+	default:
+		return nil, fmt.Errorf("GetMultichainAllTxIn: no support for : %s", chainType)
+	}
+}
+
+// Get Bitcoin txouts for tx
+func (pgb *ChainDB) GetBTCAllTxIn(txid string) ([]*apitypes.MultichainTxIn, error) {
+	txhash, err := btc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.BtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[BTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txins := tx.Vin
+	allTxIn := make([]*apitypes.MultichainTxIn, 0, len(txins))
+	for _, txin := range txins {
+		mulTxIn := &apitypes.MultichainTxIn{
+			Coinbase: txin.Coinbase,
+			Txid:     txin.Txid,
+			Vout:     txin.Vout,
+			Sequence: txin.Sequence,
+			Witness:  txin.Witness,
+		}
+		if txin.ScriptSig != nil {
+			mulTxIn.ScriptSig = &apitypes.MultichainScriptSig{
+				Asm: txin.ScriptSig.Asm,
+				Hex: txin.ScriptSig.Hex,
+			}
+		}
+		allTxIn = append(allTxIn, mulTxIn)
+	}
+	return allTxIn, nil
+}
+
+// Get Litecoin txins for tx
+func (pgb *ChainDB) GetLTCAllTxIn(txid string) ([]*apitypes.MultichainTxIn, error) {
+	txhash, err := ltc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.LtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[LTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txins := tx.Vin
+	allTxIn := make([]*apitypes.MultichainTxIn, 0, len(txins))
+	for _, txin := range txins {
+		mulTxIn := &apitypes.MultichainTxIn{
+			Coinbase: txin.Coinbase,
+			Txid:     txin.Txid,
+			Vout:     txin.Vout,
+			Sequence: txin.Sequence,
+			Witness:  txin.Witness,
+		}
+		if txin.ScriptSig != nil {
+			mulTxIn.ScriptSig = &apitypes.MultichainScriptSig{
+				Asm: txin.ScriptSig.Asm,
+				Hex: txin.ScriptSig.Hex,
+			}
+		}
+		allTxIn = append(allTxIn, mulTxIn)
+	}
+	return allTxIn, nil
+}
+
+// GetMultichainAllTxOut gets all transaction outputs, as a slice of *apitypes.MultichainTxOut, for
+// a given chainType, transaction ID.
+func (pgb *ChainDB) GetMultichainAllTxOut(chainType string, txid string) ([]*apitypes.MultichainTxOut, error) {
+	switch chainType {
+	case mutilchain.TYPEBTC:
+		return pgb.GetBTCAllTxOut(txid)
+	case mutilchain.TYPELTC:
+		return pgb.GetLTCAllTxOut(txid)
+	default:
+		return nil, fmt.Errorf("GetMultichainAllTxOut: no support for : %s", chainType)
+	}
+}
+
+// Get Bitcoin txouts for tx
+func (pgb *ChainDB) GetBTCAllTxOut(txid string) ([]*apitypes.MultichainTxOut, error) {
+	txhash, err := btc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.BtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[BTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txouts := tx.Vout
+	allTxOut := make([]*apitypes.MultichainTxOut, 0, len(txouts))
+	for i := range txouts {
+		// chainjson.Vout and apitypes.TxOut are the same except for N.
+		spk := &tx.Vout[i].ScriptPubKey
+		allTxOut = append(allTxOut, &apitypes.MultichainTxOut{
+			Value: txouts[i].Value,
+			N:     txouts[i].N,
+			ScriptPubKeyDecoded: apitypes.MultichainScriptPubKey{
+				Asm:       spk.Asm,
+				Hex:       spk.Hex,
+				ReqSigs:   spk.ReqSigs,
+				Type:      spk.Type,
+				Addresses: spk.Addresses,
+			},
+		})
+	}
+	return allTxOut, nil
+}
+
+// Get Litecoin txouts for tx
+func (pgb *ChainDB) GetLTCAllTxOut(txid string) ([]*apitypes.MultichainTxOut, error) {
+	txhash, err := ltc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.LtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[LTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txouts := tx.Vout
+	allTxOut := make([]*apitypes.MultichainTxOut, 0, len(txouts))
+	for i := range txouts {
+		// chainjson.Vout and apitypes.TxOut are the same except for N.
+		spk := &tx.Vout[i].ScriptPubKey
+		allTxOut = append(allTxOut, &apitypes.MultichainTxOut{
+			Value: txouts[i].Value,
+			N:     txouts[i].N,
+			ScriptPubKeyDecoded: apitypes.MultichainScriptPubKey{
+				Asm:       spk.Asm,
+				Hex:       spk.Hex,
+				ReqSigs:   spk.ReqSigs,
+				Type:      spk.Type,
+				Addresses: spk.Addresses,
+			},
+		})
+	}
+	return allTxOut, nil
+}
+
 // GetStakeDiffEstimates gets an *apitypes.StakeDiff, which is a combo of
 // chainjson.EstimateStakeDiffResult and chainjson.GetStakeDifficultyResult
 func (pgb *ChainDB) GetStakeDiffEstimates() *apitypes.StakeDiff {

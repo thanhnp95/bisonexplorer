@@ -755,6 +755,16 @@ func TransactionHashCtx(next http.Handler) http.Handler {
 	})
 }
 
+// ChainTypeCtx returns a http.HandlerFunc that embeds the value at the
+// url part {chaintype} into the request context.
+func ChainTypeCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chainType := chi.URLParam(r, "chaintype")
+		ctx := context.WithValue(r.Context(), ctxChainType, chainType)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 // MultichainTxHashCtx returns a http.HandlerFunc that embeds the value at the
 // url part {chaintype}/{txid} into the request context.
 func MultichainTxHashCtx(next http.Handler) http.Handler {

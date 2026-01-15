@@ -364,6 +364,21 @@ type TxOut struct {
 	ScriptPubKeyDecoded ScriptPubKey `json:"scriptPubKey"`
 }
 
+// MultichainTxOut defines multichain tx output.
+type MultichainTxOut struct {
+	Value               float64                `json:"value"`
+	N                   uint32                 `json:"n"`
+	ScriptPubKeyDecoded MultichainScriptPubKey `json:"scriptPubKey"`
+}
+
+type MultichainScriptPubKey struct {
+	Asm       string   `json:"asm"`
+	Hex       string   `json:"hex"`
+	ReqSigs   int32    `json:"reqSigs,omitempty"`
+	Type      string   `json:"type"`
+	Addresses []string `json:"addresses,omitempty"`
+}
+
 // TxIn defines a decred transaction input.
 type TxIn struct {
 	// Non-witness
@@ -375,6 +390,21 @@ type TxIn struct {
 	BlockHeight     uint32  `json:"blockheight"`
 	BlockIndex      uint32  `json:"blockindex"`
 	SignatureScript string  `json:"sigscript"`
+}
+
+// MultichainTxIn defines a decred transaction input.
+type MultichainTxIn struct {
+	Coinbase  string               `json:"coinbase"`
+	Txid      string               `json:"txid"`
+	Vout      uint32               `json:"vout"`
+	ScriptSig *MultichainScriptSig `json:"scriptSig"`
+	Sequence  uint32               `json:"sequence"`
+	Witness   []string             `json:"txinwitness"`
+}
+
+type MultichainScriptSig struct {
+	Asm string `json:"asm"`
+	Hex string `json:"hex"`
 }
 
 // OutPoint is used to track previous transaction outputs.

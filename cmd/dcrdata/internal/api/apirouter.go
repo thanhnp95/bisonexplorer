@@ -316,6 +316,24 @@ func NewAPIRouter(app *appContext, JSONIndent string, useRealIP, compressLarge b
 		r.Get("/prove-tx", app.MoneroProveTx)
 	})
 
+	mux.Route("/{chaintype}", func(r chi.Router) {
+		r.Use(m.ChainTypeCtx)
+		r.Route("/tx", func(rt chi.Router) {
+			rt.Route("/{txid}", func(rd chi.Router) {
+				rd.Use(m.TransactionHashCtx)
+				rd.Get("/", app.getMultichainDecodedTx)
+				rd.Route("/out", func(ro chi.Router) {
+					ro.Get("/", app.getMultichainTransactionOutputs)
+					ro.With(m.TransactionIOIndexCtx).Get("/{txinoutindex}", app.getMultichainTransactionOutput)
+				})
+				rd.Route("/in", func(ri chi.Router) {
+					ri.Get("/", app.getMultichainTransactionInputs)
+					ri.With(m.TransactionIOIndexCtx).Get("/{txinoutindex}", app.getMultichainTransactionInput)
+				})
+			})
+		})
+	})
+
 	mux.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, r.URL.RequestURI()+" ain't no country I've ever heard of! (404)", http.StatusNotFound)
 	})

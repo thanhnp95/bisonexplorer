@@ -110,6 +110,8 @@ type DataSource interface {
 	GetStakeVersionsLatest() (*chainjson.StakeVersions, error)
 	GetAllTxIn(txid *chainhash.Hash) []*apitypes.TxIn
 	GetAllTxOut(txid *chainhash.Hash) []*apitypes.TxOut
+	GetMultichainAllTxIn(chainType string, txid string) ([]*apitypes.MultichainTxIn, error)
+	GetMultichainAllTxOut(chainType string, txid string) ([]*apitypes.MultichainTxOut, error)
 	GetTransactionsForBlockByHash(hash string) *apitypes.BlockTransactions
 	GetStakeDiffEstimates() *apitypes.StakeDiff
 	GetSummary(idx int) *apitypes.BlockDataBasic
@@ -2552,6 +2554,106 @@ func (c *appContext) getTransactionOutputs(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, allTxOut, m.GetIndentCtx(r))
+}
+
+// getMultichainTransactionInputs serves []MultichainTxOut
+func (c *appContext) getMultichainTransactionInputs(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	allTxOut, err := c.DataSource.GetMultichainAllTxIn(chainType, txid)
+	// allTxOut may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Errorf("Unable to get all TxOut for %s transaction %s. Error: %v", chainType, txid, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	writeJSON(w, allTxOut, m.GetIndentCtx(r))
+}
+
+// getMultichainTransactionInput serves []MultichainTxIn
+func (c *appContext) getMultichainTransactionInput(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	index := m.GetTxIOIndexCtx(r)
+	if index < 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	allTxIn, err := c.DataSource.GetMultichainAllTxIn(chainType, txid)
+	// allTxIn may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Warnf("Unable to get all TxIn for %s transaction %s", chainType, txid)
+		http.NotFound(w, r)
+		return
+	}
+
+	if len(allTxIn) <= index {
+		apiLog.Debugf("[%s] Index %d larger than []TxIn length %d", chainType, index, len(allTxIn))
+		http.NotFound(w, r)
+		return
+	}
+
+	writeJSON(w, *allTxIn[index], m.GetIndentCtx(r))
+}
+
+// getMultichainTransactionOutputs serves []MultichainTxOut
+func (c *appContext) getMultichainTransactionOutputs(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	allTxOut, err := c.DataSource.GetMultichainAllTxOut(chainType, txid)
+	// allTxOut may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Errorf("Unable to get all TxOut for %s transaction %s. Error: %v", chainType, txid, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	writeJSON(w, allTxOut, m.GetIndentCtx(r))
+}
+
+// getMultichainTransactionOutput serves MultichainTxOut
+func (c *appContext) getMultichainTransactionOutput(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	index := m.GetTxIOIndexCtx(r)
+	if index < 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	allTxOut, err := c.DataSource.GetMultichainAllTxOut(chainType, txid)
+	// allTxOut may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Errorf("Unable to get all TxOut for %s transaction %s. Error: %v", chainType, txid, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	if len(allTxOut) <= index {
+		apiLog.Debugf("[%s] Index %d larger than []TxOut length %d", chainType, index, len(allTxOut))
+		http.NotFound(w, r)
+		return
+	}
+
+	writeJSON(w, *allTxOut[index], m.GetIndentCtx(r))
 }
 
 // getTransactionOutput serves TxOut[i]
