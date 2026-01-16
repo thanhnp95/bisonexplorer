@@ -2801,7 +2801,7 @@ func (exp *ExplorerUI) TreasuryPage(w http.ResponseWriter, r *http.Request) {
 
 // AddressPage is the page handler for the "/address" path.
 func (exp *ExplorerUI) AddressPage(w http.ResponseWriter, r *http.Request) {
-	if exp.IsCrawlerUserAgent(r.UserAgent(), externalapi.GetIP(r)) {
+	if exp.IsCrawlerUserAgentAdvance(r.UserAgent(), externalapi.GetIP(r)) {
 		return
 	}
 	// AddressPageData is the data structure passed to the HTML template
@@ -5269,39 +5269,39 @@ func (exp *ExplorerUI) IsCrawlerUserAgentAdvance(userAgent, ip string) bool {
 	if isCrawler {
 		return true
 	}
+	ipRange := utils.GetIPRange(ip)
 	// check if is on black list
-	inBlackList, err := exp.dataSource.CheckOnBlackList(userAgent, ip)
+	inBlackList, err := exp.dataSource.CheckIPRangeOnBlackList(ipRange)
 	if err != nil || inBlackList {
 		return true
 	}
 	now := uint64(time.Now().Unix())
 	// remove all agent has duration >= 15s
-	remainList := make([]*externalapi.AgentTemp, 0)
-	for _, agent := range externalapi.TempAgent {
+	remainList := make([]*externalapi.IPRangeAccessData, 0)
+	for _, ipRangeAccessData := range externalapi.AccessDataIPRanges {
 		// check duration with last time
-		duration := now - agent.LastTime
+		duration := now - ipRangeAccessData.LastTime
 		if duration >= 15 {
 			continue
 		}
-		remainList = append(remainList, agent)
+		remainList = append(remainList, ipRangeAccessData)
 	}
-	externalapi.TempAgent = remainList
+	externalapi.AccessDataIPRanges = remainList
 	// count on temp agents
 	// check exist on TempAgent
-	var handlerAgent *externalapi.AgentTemp
+	var handlerAgent *externalapi.IPRangeAccessData
 	var existIndex int
-	for index, agent := range externalapi.TempAgent {
-		if agent.Agent == userAgent && agent.Ip == ip {
-			handlerAgent = agent
+	for index, iprangeAccess := range externalapi.AccessDataIPRanges {
+		if iprangeAccess.IpRange == ipRange {
+			handlerAgent = iprangeAccess
 			existIndex = index
 			break
 		}
 	}
 	// if not exist on temp list
 	if handlerAgent == nil {
-		externalapi.TempAgent = append(externalapi.TempAgent, &externalapi.AgentTemp{
-			Agent:    userAgent,
-			Ip:       ip,
+		externalapi.AccessDataIPRanges = append(externalapi.AccessDataIPRanges, &externalapi.IPRangeAccessData{
+			IpRange:  ipRange,
 			GetCount: 1,
 			Duration: 0,
 			LastTime: now,
@@ -5312,19 +5312,19 @@ func (exp *ExplorerUI) IsCrawlerUserAgentAdvance(userAgent, ip string) bool {
 	handlerAgent.GetCount++
 	handlerAgent.Duration += now - handlerAgent.LastTime
 	handlerAgent.LastTime = now
-	externalapi.TempAgent[existIndex] = handlerAgent
-	// if access count is 8 times in about 10s, add to black list
-	if handlerAgent.GetCount >= 7 {
+	externalapi.AccessDataIPRanges[existIndex] = handlerAgent
+	// if access count is 8 times in about 15s, add to black list
+	if handlerAgent.GetCount >= 8 {
 		// remove from temp agents
-		externalapi.TempAgent = append(externalapi.TempAgent[:existIndex], externalapi.TempAgent[existIndex+1:]...)
+		externalapi.AccessDataIPRanges = append(externalapi.AccessDataIPRanges[:existIndex], externalapi.AccessDataIPRanges[existIndex+1:]...)
 		if handlerAgent.Duration < 15 {
 			// add to blacklist
-			err := exp.dataSource.InsertToBlackList(userAgent, ip, "Too many visits in a short period of time")
+			err := exp.dataSource.InsertIPRangeToBlackList(ipRange, "Too many visits in a short period of time")
 			if err != nil {
-				log.Errorf("Add agent to black list failed: %s, ip: %s", userAgent, ip)
+				log.Errorf("Add agent to black list failed, ipRange: %s. %v", ipRange, err)
 				return true
 			}
-			log.Warnf("Added agent: %s, ip: %s  to black list", userAgent, ip)
+			log.Warnf("Added ip range: %s to black list", ipRange)
 			return true
 		}
 	}
