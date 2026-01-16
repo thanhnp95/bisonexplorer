@@ -322,6 +322,15 @@ func GetMultichainTxID(r *http.Request) (string, string) {
 	return chainType, hashStr
 }
 
+func GetTxhashStrCtx(r *http.Request) (string, error) {
+	hashStr, ok := r.Context().Value(ctxTxHash).(string)
+	if !ok {
+		apiLog.Trace("txid not set")
+		return "", fmt.Errorf("txid not set")
+	}
+	return hashStr, nil
+}
+
 // GetTxnsCtx retrieves the ctxTxns data from the request context. If not set,
 // the return value is an empty string slice.
 func GetTxnsCtx(r *http.Request) ([]*chainhash.Hash, error) {
@@ -416,6 +425,24 @@ func GetBlockHashCtx(r *http.Request) (string, error) {
 	}
 
 	return hashStr, nil
+}
+
+func GetBlockHashStrCtx(r *http.Request) (string, error) {
+	hashStr, ok := r.Context().Value(ctxBlockHash).(string)
+	if !ok {
+		apiLog.Trace("block hash not set")
+		return "", fmt.Errorf("block hash not set")
+	}
+	return hashStr, nil
+}
+
+func GetMultichainBlockHeightCtx(r *http.Request) (int, error) {
+	blockHeight, ok := r.Context().Value(ctxBlockIndex).(int)
+	if !ok {
+		apiLog.Trace("block height not set")
+		return -1, fmt.Errorf("block height not set")
+	}
+	return blockHeight, nil
 }
 
 // GetMultichainAddressCtx retrieves the CtxAddress and ctxChainType data from the request context.

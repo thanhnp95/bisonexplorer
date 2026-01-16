@@ -160,6 +160,12 @@ type DataSource interface {
 	CheckOnBlackList(agent, ip string) (bool, error)
 	MoneroDecodeOutputs(txid, address, viewkey string) ([]externalapi.TxOutput, error)
 	MoneroProveOutputs(txid, address, txkey string) ([]externalapi.TxOutput, error)
+	GetMoneroTransaction(txhash string) (any, error)
+	GetMoneroLastestTransactions() (any, error)
+	GetMoneroBlockDetail(heightOrHash string) (any, error)
+	GetMoneroMempoolDetail() (any, error)
+	GetMoneroNetworkInfo() (any, error)
+	GetMoneroRawTransaction(txhash string) (any, error)
 }
 
 // dcrdata application context used by all route handlers
@@ -792,10 +798,15 @@ func (c *appContext) getMultichainDecodedTx(w http.ResponseWriter, r *http.Reque
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
-	// this function only support for utxo based blockchain
+	// get monero tx detail
 	if chainType == mutilchain.TYPEXMR {
-		apiLog.Errorf("This API not support for %s", chainType)
-		http.Error(w, http.StatusText(422), 422)
+		xmrTx, err := c.DataSource.GetMoneroTransaction(txid)
+		if err != nil {
+			apiLog.Errorf("Get monero transaction failed: txid: %s", txid)
+			http.Error(w, http.StatusText(422), 422)
+			return
+		}
+		writeJSON(w, xmrTx, m.GetIndentCtx(r))
 		return
 	}
 	tx, err := c.DataSource.GetMultichainTransactionVerbose(txid, chainType)
@@ -3716,6 +3727,73 @@ func (c *appContext) MoneroProveTx(w http.ResponseWriter, r *http.Request) {
 		Error:     false,
 		ProveData: proveOutput,
 	}, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroTransactions(w http.ResponseWriter, r *http.Request) {
+	// get latest txs for monero
+	txs, err := c.DataSource.GetMoneroLastestTransactions()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, txs, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroMempool(w http.ResponseWriter, r *http.Request) {
+	mempool, err := c.DataSource.GetMoneroMempoolDetail()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, mempool, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroNetworkInfo(w http.ResponseWriter, r *http.Request) {
+	netInfo, err := c.DataSource.GetMoneroNetworkInfo()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, netInfo, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroBlockSummary(w http.ResponseWriter, r *http.Request) {
+	blockhash, _ := m.GetBlockHashStrCtx(r)
+	if blockhash == "" {
+		// get block idx
+		blockidx, _ := m.GetMultichainBlockHeightCtx(r)
+		if blockidx < 0 {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		blockhash = fmt.Sprintf("%d", blockidx)
+	}
+
+	blockDetail, err := c.DataSource.GetMoneroBlockDetail(blockhash)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, blockDetail, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroTransactionRaw(w http.ResponseWriter, r *http.Request) {
+	txhash, err := m.GetTxhashStrCtx(r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	txRaw, err := c.DataSource.GetMoneroRawTransaction(txhash)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, txRaw, m.GetIndentCtx(r))
 }
 
 func (c *appContext) getAvgBlockTime(w http.ResponseWriter, r *http.Request) {

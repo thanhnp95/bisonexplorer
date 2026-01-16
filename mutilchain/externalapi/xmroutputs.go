@@ -57,3 +57,100 @@ func DecodeOutputs(apiServ, txid, address, viewKey string, isProve bool) ([]TxOu
 	log.Info("Finish decode outputs for monero tx")
 	return responseData.Data.Outputs, nil
 }
+
+func GetTransaction(apiServ, txhash string) (any, error) {
+	log.Infof("API: Start get monero transaction: txhash: %s", txhash)
+	url := fmt.Sprintf("%s/transaction/%s", apiServ, txhash)
+	var responseData any
+	req := &ReqConfig{
+		Method:  http.MethodGet,
+		HttpUrl: url,
+		Payload: map[string]string{},
+	}
+	if err := HttpRequest(req, &responseData); err != nil {
+		return nil, err
+	}
+	log.Infof("API: Finish get monero transaction: txhash: %s", txhash)
+	return responseData, nil
+}
+
+// get last 25 block detail
+func GetLastestTransactions(apiServ string) (any, error) {
+	log.Info("API: Start get monero 24 lastest blocks")
+	url := fmt.Sprintf("%s/transactions", apiServ)
+	var responseData any
+	req := &ReqConfig{
+		Method:  http.MethodGet,
+		HttpUrl: url,
+		Payload: map[string]string{},
+	}
+	if err := HttpRequest(req, &responseData); err != nil {
+		return nil, err
+	}
+	log.Info("API: Finish get monero 24 lastest blocks")
+	return responseData, nil
+}
+
+func GetBlockDetail(apiServ, heightOrHash string) (any, error) {
+	log.Infof("API: Start get monero block detail: height/hash: %s", heightOrHash)
+	url := fmt.Sprintf("%s/block/%s", apiServ, heightOrHash)
+	var responseData any
+	req := &ReqConfig{
+		Method:  http.MethodGet,
+		HttpUrl: url,
+		Payload: map[string]string{},
+	}
+	if err := HttpRequest(req, &responseData); err != nil {
+		return nil, err
+	}
+	log.Infof("API: Finish get monero block detail: height/hash: %s", heightOrHash)
+	return responseData, nil
+}
+
+func GetMempoolDetail(apiServ string) (any, error) {
+	log.Info("API: Start get monero mempool detail")
+	url := fmt.Sprintf("%s/mempool", apiServ)
+	var responseData any
+	req := &ReqConfig{
+		Method:  http.MethodGet,
+		HttpUrl: url,
+		Payload: map[string]string{},
+	}
+	if err := HttpRequest(req, &responseData); err != nil {
+		return nil, err
+	}
+	log.Info("API: Finish get monero mempool detail")
+	return responseData, nil
+}
+
+func GetNetworkInfo(apiServ string) (any, error) {
+	log.Info("API: Start get monero network info")
+	url := fmt.Sprintf("%s/networkinfo", apiServ)
+	var responseData any
+	req := &ReqConfig{
+		Method:  http.MethodGet,
+		HttpUrl: url,
+		Payload: map[string]string{},
+	}
+	if err := HttpRequest(req, &responseData); err != nil {
+		return nil, err
+	}
+	log.Info("API: Finish get monero network info")
+	return responseData, nil
+}
+
+func GetRawTransaction(apiServ, txhash string) (any, error) {
+	log.Infof("API: Start get monero raw transaction: txhash: %s", txhash)
+	url := fmt.Sprintf("%s/rawtransaction/%s", apiServ, txhash)
+	var responseData any
+	req := &ReqConfig{
+		Method:  http.MethodGet,
+		HttpUrl: url,
+		Payload: map[string]string{},
+	}
+	if err := HttpRequest(req, &responseData); err != nil {
+		return nil, err
+	}
+	log.Infof("API: Finish get monero raw transaction: txhash: %s", txhash)
+	return responseData, nil
+}
