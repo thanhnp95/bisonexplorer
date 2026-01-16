@@ -418,6 +418,22 @@ func GetBlockHashCtx(r *http.Request) (string, error) {
 	return hashStr, nil
 }
 
+// GetMultichainAddressCtx retrieves the CtxAddress and ctxChainType data from the request context.
+// If not set, the return value is an empty strings.
+func GetMultichainAddressCtx(r *http.Request) (string, string) {
+	addressStr, ok := r.Context().Value(CtxAddress).(string)
+	if !ok {
+		apiLog.Trace("address not set")
+		return "", ""
+	}
+	chainType, ok := r.Context().Value(ctxChainType).(string)
+	if !ok {
+		apiLog.Trace("chain type not set")
+		return "", ""
+	}
+	return chainType, addressStr
+}
+
 // GetAddressCtx returns a slice of base-58 encoded addresses parsed from the
 // {address} URL parameter. Duplicate addresses are removed. Multiple
 // comma-delimited address can be specified.
@@ -751,6 +767,16 @@ func TransactionHashCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		txid := chi.URLParam(r, "txid")
 		ctx := context.WithValue(r.Context(), ctxTxHash, txid)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// SimpleAddressCtx returns a http.HandlerFunc that embeds the value at the
+// url part {address} into the request context.
+func SimpleAddressCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		address := chi.URLParam(r, "address")
+		ctx := context.WithValue(r.Context(), CtxAddress, address)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

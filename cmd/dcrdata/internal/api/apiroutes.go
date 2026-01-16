@@ -69,9 +69,10 @@ type DataSource interface {
 	FillAddressTransactions(addrInfo *dbtypes.AddressInfo) error
 	AddressTransactionDetails(addr string, count, skip int64,
 		txnType dbtypes.AddrTxnViewType) (*apitypes.Address, error)
-	MutilchainAddressTransactionDetails(addr, chainType string, count, skip int64,
-		txnType dbtypes.AddrTxnViewType) (*apitypes.Address, error)
+	MutilchainAddressTransactionDetails(addr, chainType string, count, skip int64) (*apitypes.Address, error)
+	MutilchainDBAddressTransactionDetails(addr, chainType string, count, skip int64) (*apitypes.MultichainAddress, error)
 	AddressTotals(address string) (*apitypes.AddressTotals, error)
+	MultichainAddressTotals(chainType, address string) (*apitypes.MultichainAddressTotals, error)
 	VotesInBlock(hash string) (int16, error)
 	TxHistoryData(address string, addrChart dbtypes.HistoryChart,
 		chartGroupings dbtypes.TimeBasedGrouping) (*dbtypes.ChartsData, error)
@@ -153,7 +154,7 @@ type DataSource interface {
 	GetTreasurySummaryAllYear() ([]dbtypes.TreasurySummary, error)
 	GetLegacySummaryAllYear() ([]dbtypes.TreasurySummary, error)
 	GetMultichainTransactionHex(txid, chainType string) string
-	GetMultichainTransactionVerbose(txid, chainType string) (any, error)
+	GetMultichainTransactionVerbose(txid, chainType string) (*apitypes.MultichainTxRaw, error)
 	GetMultichainSwapInfoData(txid, chainType string) (swapsInfo *txhelpers.TxAtomicSwaps, err error)
 	InsertToBlackList(agent, ip, note string) error
 	CheckOnBlackList(agent, ip string) (bool, error)
@@ -791,13 +792,19 @@ func (c *appContext) getMultichainDecodedTx(w http.ResponseWriter, r *http.Reque
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
 	tx, err := c.DataSource.GetMultichainTransactionVerbose(txid, chainType)
 	if err != nil {
 		apiLog.Errorf("Unable to get multichain transaction: Type: %s, txid: %s", chainType, txid)
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
-	writeJSON(w, tx, m.GetIndentCtx(r))
+	writeJSON(w, *tx, m.GetIndentCtx(r))
 }
 
 func (c *appContext) getProposalTimeMinMax() (int64, int64, error) {
@@ -2564,6 +2571,13 @@ func (c *appContext) getMultichainTransactionInputs(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
 	allTxOut, err := c.DataSource.GetMultichainAllTxIn(chainType, txid)
 	// allTxOut may be empty, but not a nil slice
 	if err != nil {
@@ -2579,6 +2593,13 @@ func (c *appContext) getMultichainTransactionInputs(w http.ResponseWriter, r *ht
 func (c *appContext) getMultichainTransactionInput(w http.ResponseWriter, r *http.Request) {
 	chainType, txid := m.GetMultichainTxID(r)
 	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
@@ -2613,7 +2634,12 @@ func (c *appContext) getMultichainTransactionOutputs(w http.ResponseWriter, r *h
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
-
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
 	allTxOut, err := c.DataSource.GetMultichainAllTxOut(chainType, txid)
 	// allTxOut may be empty, but not a nil slice
 	if err != nil {
@@ -2629,6 +2655,13 @@ func (c *appContext) getMultichainTransactionOutputs(w http.ResponseWriter, r *h
 func (c *appContext) getMultichainTransactionOutput(w http.ResponseWriter, r *http.Request) {
 	chainType, txid := m.GetMultichainTxID(r)
 	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
@@ -3225,6 +3258,35 @@ func (c *appContext) addressTotals(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		log.Warnf("failed to get address totals (%s): %v", address, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	writeJSON(w, totals, m.GetIndentCtx(r))
+}
+
+func (c *appContext) multichainAddressTotals(w http.ResponseWriter, r *http.Request) {
+	chainType, address := m.GetMultichainAddressCtx(r)
+	if chainType == "" || address == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	totals, err := c.DataSource.MultichainAddressTotals(chainType, address)
+	if dbtypes.IsTimeoutErr(err) {
+		apiLog.Errorf("MultichainAddressTotals: %v", err)
+		http.Error(w, "Database timeout.", http.StatusServiceUnavailable)
+		return
+	}
+	if err != nil {
+		log.Warnf("failed to get %s address totals (%s): %v", chainType, address, err)
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
@@ -3910,6 +3972,45 @@ func (c *appContext) getAddressTransactions(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, txs, m.GetIndentCtx(r))
 }
 
+func (c *appContext) getMultichainDBAddressTransactions(w http.ResponseWriter, r *http.Request) {
+	chainType, address := m.GetMultichainAddressCtx(r)
+	if chainType == "" || address == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+	count := int64(m.GetNCtx(r))
+	skip := int64(m.GetMCtx(r))
+	if count <= 0 {
+		count = 10
+	} else if count > 8000 {
+		count = 8000
+	}
+
+	if skip <= 0 {
+		skip = 0
+	}
+
+	txs, err := c.DataSource.MutilchainDBAddressTransactionDetails(address, chainType, count, skip)
+	if dbtypes.IsTimeoutErr(err) {
+		apiLog.Errorf("MutilchainDBAddressTransactionDetails: %v", err)
+		http.Error(w, "Database timeout.", http.StatusServiceUnavailable)
+		return
+	}
+
+	if txs == nil || err != nil {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+	writeJSON(w, *txs, m.GetIndentCtx(r))
+}
+
 func (c *appContext) getMutilchainAddressTransactions(w http.ResponseWriter, r *http.Request) {
 	if c.IsCrawlerUserAgent(r.UserAgent(), externalapi.GetIP(r)) {
 		return
@@ -3935,7 +4036,7 @@ func (c *appContext) getMutilchainAddressTransactions(w http.ResponseWriter, r *
 		skip = 0
 	}
 
-	txs, err := c.DataSource.MutilchainAddressTransactionDetails(address, chainType, count, skip, dbtypes.AddrTxnAll)
+	txs, err := c.DataSource.MutilchainAddressTransactionDetails(address, chainType, count, skip)
 	if dbtypes.IsTimeoutErr(err) {
 		apiLog.Errorf("AddressTransactionDetails: %v", err)
 		http.Error(w, "Database timeout.", http.StatusServiceUnavailable)

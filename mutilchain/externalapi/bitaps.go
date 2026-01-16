@@ -82,7 +82,7 @@ func GetBitapsAddressTxsData(chainType, address string, limit, offset int64) (*B
 	return &fetchData, nil
 }
 
-func GetBitapsAddressInfoAPI(address, chainType string, limit, offset int64, txnType dbtypes.AddrTxnViewType) (*APIAddressInfo, error) {
+func GetBitapsAddressInfoAPI(address, chainType string, limit, offset int64) (*APIAddressInfo, error) {
 	log.Debugf("Start get address data from Bitaps API for %s", chainType)
 	//Get address summary data
 	summaryData, err := GetBitapsSummaryData(chainType, address)

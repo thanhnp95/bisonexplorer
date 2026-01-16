@@ -332,6 +332,21 @@ func NewAPIRouter(app *appContext, JSONIndent string, useRealIP, compressLarge b
 				})
 			})
 		})
+		r.Route("/address", func(rt chi.Router) {
+			rt.Route("/{address}", func(rd chi.Router) {
+				rd.Use(m.SimpleAddressCtx)
+				rd.Get("/totals", app.multichainAddressTotals)
+				rd.Get("/", app.getMultichainDBAddressTransactions)
+				rd.Route("/count/{N}", func(re chi.Router) {
+					re.Use(m.NPathCtx)
+					re.Get("/", app.getMultichainDBAddressTransactions)
+					re.Route("/skip/{M}", func(ri chi.Router) {
+						ri.Use(m.MPathCtx)
+						ri.Get("/", app.getMultichainDBAddressTransactions)
+					})
+				})
+			})
+		})
 	})
 
 	mux.NotFound(func(w http.ResponseWriter, r *http.Request) {
