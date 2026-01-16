@@ -12728,15 +12728,15 @@ func (pgb *ChainDB) Get24hTreasuryBalanceChange() (treasuryBalanceChange int64, 
 }
 
 // InsertToBlackList insert to black list
-func (pgb *ChainDB) InsertToBlackList(agent, ip, note string) error {
-	_, err := pgb.db.Exec(internal.UpsertBlackList, agent, ip, note)
+func (pgb *ChainDB) InsertIPRangeToBlackList(iprange, note string) error {
+	_, err := pgb.db.Exec(internal.UpsertIPRangeBlackList, iprange, note)
 	return err
 }
 
 // CheckOnBlackList return true if exist on black list
-func (pgb *ChainDB) CheckOnBlackList(agent, ip string) (bool, error) {
+func (pgb *ChainDB) CheckIPRangeOnBlackList(ipRange string) (bool, error) {
 	var onBlacklist bool
-	err := pgb.db.QueryRow(internal.CheckExistOnBlackList, agent, ip).Scan(&onBlacklist)
+	err := pgb.db.QueryRow(internal.CheckIPRangeExistOnBlackList, ipRange).Scan(&onBlacklist)
 	return onBlacklist, err
 }
 

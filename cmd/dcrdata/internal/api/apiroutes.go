@@ -43,6 +43,7 @@ import (
 	"github.com/decred/dcrdata/v8/mutilchain"
 	"github.com/decred/dcrdata/v8/mutilchain/externalapi"
 	"github.com/decred/dcrdata/v8/txhelpers"
+	"github.com/decred/dcrdata/v8/utils"
 	"github.com/go-chi/chi/v5"
 	ltcClient "github.com/ltcsuite/ltcd/rpcclient"
 	agents "github.com/monperrus/crawler-user-agents"
@@ -156,8 +157,8 @@ type DataSource interface {
 	GetMultichainTransactionHex(txid, chainType string) string
 	GetMultichainTransactionVerbose(txid, chainType string) (*apitypes.MultichainTxRaw, error)
 	GetMultichainSwapInfoData(txid, chainType string) (swapsInfo *txhelpers.TxAtomicSwaps, err error)
-	InsertToBlackList(agent, ip, note string) error
-	CheckOnBlackList(agent, ip string) (bool, error)
+	InsertIPRangeToBlackList(iprange, note string) error
+	CheckIPRangeOnBlackList(ipRange string) (bool, error)
 	MoneroDecodeOutputs(txid, address, viewkey string) ([]externalapi.TxOutput, error)
 	MoneroProveOutputs(txid, address, txkey string) ([]externalapi.TxOutput, error)
 	GetMoneroTransaction(txhash string) (any, error)
@@ -4414,8 +4415,20 @@ func (c *appContext) getBlockHashCtx(r *http.Request) (string, error) {
 	return hash, nil
 }
 
-// IsCrawlerUserAgent return if is crawler user agent
 func (c *appContext) IsCrawlerUserAgent(userAgent, ip string) bool {
+	if strings.Contains(userAgent, "facebookexternalhit") {
+		return true
+	}
+	//check isCrawler
+	if crawlerdetect.IsCrawler(userAgent) {
+		return true
+	}
+	return agents.IsCrawler(userAgent)
+}
+
+
+// IsCrawlerUserAgent return if is crawler user agent
+func (c *appContext) IsCrawlerUserAgentAdvance(userAgent, ip string) bool {
 	if strings.Contains(userAgent, "facebookexternalhit") {
 		return true
 	}
@@ -4427,39 +4440,39 @@ func (c *appContext) IsCrawlerUserAgent(userAgent, ip string) bool {
 	if isCrawler {
 		return true
 	}
+	ipRange := utils.GetIPRange(ip)
 	// check if is on black list
-	inBlackList, err := c.DataSource.CheckOnBlackList(userAgent, ip)
+	inBlackList, err := c.DataSource.CheckIPRangeOnBlackList(ipRange)
 	if err != nil || inBlackList {
 		return true
 	}
 	now := uint64(time.Now().Unix())
 	// remove all agent has duration >= 15s
-	remainList := make([]*externalapi.AgentTemp, 0)
-	for _, agent := range externalapi.TempAgent {
+	remainList := make([]*externalapi.IPRangeAccessData, 0)
+	for _, ipRangeAccessData := range externalapi.AccessDataIPRanges {
 		// check duration with last time
-		duration := now - agent.LastTime
+		duration := now - ipRangeAccessData.LastTime
 		if duration >= 15 {
 			continue
 		}
-		remainList = append(remainList, agent)
+		remainList = append(remainList, ipRangeAccessData)
 	}
-	externalapi.TempAgent = remainList
+	externalapi.AccessDataIPRanges = remainList
 	// count on temp agents
 	// check exist on TempAgent
-	var handlerAgent *externalapi.AgentTemp
+	var handlerAgent *externalapi.IPRangeAccessData
 	var existIndex int
-	for index, agent := range externalapi.TempAgent {
-		if agent.Agent == userAgent && agent.Ip == ip {
-			handlerAgent = agent
+	for index, iprangeAccess := range externalapi.AccessDataIPRanges {
+		if iprangeAccess.IpRange == ipRange {
+			handlerAgent = iprangeAccess
 			existIndex = index
 			break
 		}
 	}
 	// if not exist on temp list
 	if handlerAgent == nil {
-		externalapi.TempAgent = append(externalapi.TempAgent, &externalapi.AgentTemp{
-			Agent:    userAgent,
-			Ip:       ip,
+		externalapi.AccessDataIPRanges = append(externalapi.AccessDataIPRanges, &externalapi.IPRangeAccessData{
+			IpRange:  ipRange,
 			GetCount: 1,
 			Duration: 0,
 			LastTime: now,
@@ -4470,19 +4483,19 @@ func (c *appContext) IsCrawlerUserAgent(userAgent, ip string) bool {
 	handlerAgent.GetCount++
 	handlerAgent.Duration += now - handlerAgent.LastTime
 	handlerAgent.LastTime = now
-	externalapi.TempAgent[existIndex] = handlerAgent
-	// if access count is 8 times in about 10s, add to black list
-	if handlerAgent.GetCount >= 15 {
+	externalapi.AccessDataIPRanges[existIndex] = handlerAgent
+	// if access count is 8 times in about 15s, add to black list
+	if handlerAgent.GetCount >= 8 {
 		// remove from temp agents
-		externalapi.TempAgent = append(externalapi.TempAgent[:existIndex], externalapi.TempAgent[existIndex+1:]...)
-		if handlerAgent.Duration < 30 {
+		externalapi.AccessDataIPRanges = append(externalapi.AccessDataIPRanges[:existIndex], externalapi.AccessDataIPRanges[existIndex+1:]...)
+		if handlerAgent.Duration < 15 {
 			// add to blacklist
-			err := c.DataSource.InsertToBlackList(userAgent, ip, "Too many visits in a short period of time")
+			err := c.DataSource.InsertIPRangeToBlackList(ipRange, "Too many visits in a short period of time")
 			if err != nil {
-				log.Errorf("Add agent to black list failed: %s, ip: %s", userAgent, ip)
+				log.Errorf("Add agent to black list failed, ipRange: %s", ipRange)
 				return true
 			}
-			log.Warnf("Added agent: %s, ip: %s  to black list", userAgent, ip)
+			log.Warnf("Added ip range: %s to black list", ipRange)
 			return true
 		}
 	}

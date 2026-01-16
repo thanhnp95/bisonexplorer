@@ -197,8 +197,8 @@ type explorerDataSource interface {
 	Get24hActiveAddressesCount() int64
 	Get24hStakingInfo() (poolvalue, missed int64, err error)
 	Get24hTreasuryBalanceChange() (treasuryBalanceChange int64, err error)
-	InsertToBlackList(agent, ip, note string) error
-	CheckOnBlackList(agent, ip string) (bool, error)
+	InsertIPRangeToBlackList(iprange, note string) error
+	CheckIPRangeOnBlackList(ipRange string) (bool, error)
 	GetBlockSwapGroupFullData(blockTxs []string) ([]*dbtypes.AtomicSwapFullData, error)
 	GetLastMultichainPoolDataList(chainType string, startHeight int64) ([]*dbtypes.MultichainPoolDataItem, error)
 	GetMultichainStats(chainType string) (*externalapi.ChainStatsData, error)

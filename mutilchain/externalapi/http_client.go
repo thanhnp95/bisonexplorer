@@ -14,9 +14,8 @@ import (
 	"time"
 )
 
-type AgentTemp struct {
-	Agent    string
-	Ip       string
+type IPRangeAccessData struct {
+	IpRange  string
 	GetCount int
 	Duration uint64
 	LastTime uint64
@@ -37,7 +36,7 @@ type ReqConfig struct {
 
 const defaultHttpClientTimeout = 30 * time.Second
 
-var TempAgent = make([]*AgentTemp, 0)
+var AccessDataIPRanges = make([]*IPRangeAccessData, 0)
 
 // newClient configures and returns a new client
 func newClient() (c *HttpClient) {

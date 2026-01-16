@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -321,7 +322,7 @@ func GetBlockchainName(chainType string) string {
 	switch chainType {
 	case mutilchain.TYPEBTC:
 		return "Bitcoin"
-	case  mutilchain.TYPELTC:
+	case mutilchain.TYPELTC:
 		return "Litecoin"
 	case mutilchain.TYPEXMR:
 		return "Monero"
@@ -330,4 +331,17 @@ func GetBlockchainName(chainType string) string {
 	default:
 		return "Unknown"
 	}
+}
+
+func GetIPRange(s string) string {
+	trimmed := strings.TrimSpace(s)
+	ip := net.ParseIP(trimmed)
+	if ip == nil {
+		return s
+	}
+	ip4 := ip.To4()
+	if ip4 == nil {
+		return s
+	}
+	return fmt.Sprintf("%d.%d", ip4[0], ip4[1])
 }
