@@ -2118,18 +2118,15 @@ func (pgb *ChainDB) AddressTransactionsAll(address string, year int64, month int
 
 	const limit = 3000000
 	addressRows, err = RetrieveAddressTxns(ctx, pgb.db, address, limit, 0, year, month)
-	// addressRows, err = RetrieveAllMainchainAddressTxns(ctx, pgb.db, address)
 	err = pgb.replaceCancelError(err)
 	return
 }
 
-func (pgb *ChainDB) MutilchainAddressTransactionsAll(address string, chainType string) (addressRows []*dbtypes.MutilchainAddressRow, err error) {
+func (pgb *ChainDB) MutilchainAddressTransactionsAll(address string, chainType string, limit, offset int64) (addressRows []*dbtypes.MutilchainAddressRow, err error) {
 	ctx, cancel := context.WithTimeout(pgb.ctx, pgb.queryTimeout)
 	defer cancel()
 
-	const limit = 3000000
-	addressRows, err = RetrieveMutilchainAddressTxns(ctx, pgb.db, address, limit, 0, chainType)
-	// addressRows, err = RetrieveAllMainchainAddressTxns(ctx, pgb.db, address)
+	addressRows, err = RetrieveMutilchainAddressTxns(ctx, pgb.db, address, limit, offset, chainType)
 	err = pgb.replaceCancelError(err)
 	return
 }
@@ -4240,7 +4237,7 @@ func (pgb *ChainDB) GetMutilchainHashHeight(chainType string) (hash string, heig
 	return
 }
 
-func (pgb *ChainDB) updateMutilchainAddressRows(address string, chainType string) (rows []*dbtypes.MutilchainAddressRow, err error) {
+func (pgb *ChainDB) updateMutilchainAddressRows(address string, chainType string, limit, offset int64) (rows []*dbtypes.MutilchainAddressRow, err error) {
 	busy, wait, done := pgb.CacheLocks.rows.TryLock(address)
 	if busy {
 		// Just wait until the updater is finished.
@@ -4258,7 +4255,7 @@ func (pgb *ChainDB) updateMutilchainAddressRows(address string, chainType string
 	hash, height := pgb.GetMutilchainHashHeight(chainType)
 	blockID := cache.NewMutilchainBlockID(hash, height)
 	// Retrieve all non-merged address transaction rows.
-	rows, err = pgb.MutilchainAddressTransactionsAll(address, chainType)
+	rows, err = pgb.MutilchainAddressTransactionsAll(address, chainType, limit, offset)
 	if err != nil && !errors.Is(err, dbtypes.ErrNoResult) {
 		return
 	}
@@ -4452,7 +4449,7 @@ func (pgb *ChainDB) MutilchainAddressHistory(address string, N, offset int64,
 
 		// Update or wait for an update to the cached AddressRows, returning ALL
 		// NON-MERGED address transaction rows.
-		addressRows, err = pgb.updateMutilchainAddressRows(address, chainType)
+		addressRows, err = pgb.updateMutilchainAddressRows(address, chainType, N, offset)
 		if err != nil && !errors.Is(err, dbtypes.ErrNoResult) && !errors.Is(err, sql.ErrNoRows) {
 			// See if another caller ran the update, in which case we were just
 			// waiting to avoid a simultaneous query. With luck the cache will
@@ -5288,6 +5285,29 @@ func (pgb *ChainDB) AddressTotals(address string) (*apitypes.AddressTotals, erro
 	}, nil
 }
 
+// AddressTotals queries for the following totals: amount spent, amount unspent,
+// number of unspent transaction outputs and number spent.
+func (pgb *ChainDB) MultichainAddressTotals(chainType, address string) (*apitypes.MultichainAddressTotals, error) {
+	// Fetch address totals
+	bal, err := RetrieveMutilchainAddressBalance(pgb.ctx, pgb.db, address, chainType)
+	if err != nil {
+		return nil, err
+	}
+
+	bestHeight, bestHash := pgb.GetMutilchainBestBlock(chainType)
+
+	return &apitypes.MultichainAddressTotals{
+		Address:       address,
+		BlockHeight:   uint64(bestHeight),
+		BlockHash:     bestHash,
+		NumSpent:      bal.NumSpent,
+		NumUnspent:    bal.NumUnspent,
+		CoinsSpent:    AmountToCoin(chainType, bal.TotalSpent),
+		CoinsUnspent:  AmountToCoin(chainType, bal.TotalUnspent),
+		TotalReceived: AmountToCoin(chainType, bal.TotalReceived),
+	}, nil
+}
+
 func (pgb *ChainDB) addressInfo(addr string, count, skip int64, txnType dbtypes.AddrTxnViewType) (*dbtypes.AddressInfo, *dbtypes.AddressBalance, error) {
 	address, err := stdaddr.DecodeAddress(addr, pgb.chainParams)
 	if err != nil {
@@ -5374,10 +5394,8 @@ func (pgb *ChainDB) AddressTransactionDetails(addr string, count, skip int64,
 	}, nil
 }
 
-func (pgb *ChainDB) MutilchainAddressTransactionDetails(addr, chainType string, count, skip int64,
-	txnType dbtypes.AddrTxnViewType) (*apitypes.Address, error) {
-
-	apiAddrInfo, err := externalapi.GetAPIMutilchainAddressDetails(pgb.OkLinkAPIKey, addr, chainType, count, skip, pgb.MutilchainHeight(chainType), txnType)
+func (pgb *ChainDB) MutilchainAddressTransactionDetails(addr, chainType string, count, skip int64) (*apitypes.Address, error) {
+	apiAddrInfo, err := externalapi.GetAPIMutilchainAddressDetails(pgb.OkLinkAPIKey, addr, chainType, count, skip, pgb.MutilchainHeight(chainType))
 	if err != nil {
 		return &apitypes.Address{
 			Address:      addr,
@@ -5401,6 +5419,29 @@ func (pgb *ChainDB) MutilchainAddressTransactionDetails(addr, chainType string, 
 	return &apitypes.Address{
 		Address:      addr,
 		Transactions: txsShort,
+	}, nil
+}
+
+func (pgb *ChainDB) MutilchainDBAddressTransactionDetails(addr, chainType string, count, skip int64) (*apitypes.MultichainAddress, error) {
+	// TODO: get from cache to increase performance
+	addressRows, err := pgb.MutilchainAddressTransactionsAll(addr, chainType, count, skip)
+	if err != nil && !errors.Is(err, dbtypes.ErrNoResult) {
+		return nil, err
+	}
+	txs := make([]*apitypes.MultichainTxRaw, 0)
+	for _, addrRow := range addressRows {
+		// get tx from fundingTx hash
+		fundingTx, err := pgb.GetMultichainTransactionVerbose(addrRow.FundingTxHash, chainType)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, fundingTx)
+	}
+
+	// put a bow on it
+	return &apitypes.MultichainAddress{
+		Address:      addr,
+		Transactions: txs,
 	}, nil
 }
 
@@ -8294,43 +8335,146 @@ func (pgb *ChainDB) GetAPITransaction(txid *chainhash.Hash) *apitypes.Tx {
 	return tx
 }
 
-// GetBTCAPITransaction gets an *apitypes.Tx for a given btc transaction ID.
-func (pgb *ChainDB) GetBTCAPITransaction(txid string) (any, error) {
+// GetBTCDaemonTransaction gets an *apitypes.Tx for a given btc transaction ID.
+func (pgb *ChainDB) GetBTCDaemonTransaction(txid string) (*apitypes.MultichainTxRaw, error) {
 	txHash, err := btc_chainhash.NewHashFromStr(txid)
 	if err != nil {
 		return nil, err
 	}
 	txraw, err := pgb.BtcClient.GetRawTransactionVerbose(txHash)
 	if err != nil {
-		log.Errorf("GetBTCAPITransaction failed for %v: %v", txid, err)
+		log.Errorf("GetBTCDaemonTransaction failed for %v: %v", txid, err)
 		return nil, err
 	}
+	result := &apitypes.MultichainTxRaw{
+		Hex:           txraw.Hex,
+		Txid:          txraw.Txid,
+		Hash:          txraw.Hash,
+		Size:          txraw.Size,
+		Vsize:         txraw.Vsize,
+		Weight:        txraw.Weight,
+		Version:       txraw.Version,
+		LockTime:      txraw.LockTime,
+		BlockHash:     txraw.BlockHash,
+		Confirmations: txraw.Confirmations,
+		Time:          txraw.Time,
+		Blocktime:     txraw.Blocktime,
+	}
+	if len(txraw.Vin) > 0 {
+		mulVins := make([]apitypes.MultichainTxIn, 0)
+		for _, vin := range txraw.Vin {
+			mulVin := apitypes.MultichainTxIn{
+				Coinbase: vin.Coinbase,
+				Txid:     vin.Txid,
+				Vout:     vin.Vout,
+				Sequence: vin.Sequence,
+				Witness:  vin.Witness,
+			}
+			if vin.ScriptSig != nil {
+				mulVin.ScriptSig = &apitypes.MultichainScriptSig{
+					Asm: vin.ScriptSig.Asm,
+					Hex: vin.ScriptSig.Hex,
+				}
+			}
+			mulVins = append(mulVins, mulVin)
+		}
+		result.Vin = mulVins
+	}
 
-	return txraw, nil
+	if len(txraw.Vout) > 0 {
+		mulVouts := make([]apitypes.MultichainTxOut, 0)
+		for _, vout := range txraw.Vout {
+			mulVouts = append(mulVouts, apitypes.MultichainTxOut{
+				Value: vout.Value,
+				N:     vout.N,
+				ScriptPubKeyDecoded: apitypes.MultichainScriptPubKey{
+					Asm:       vout.ScriptPubKey.Asm,
+					Hex:       vout.ScriptPubKey.Hex,
+					ReqSigs:   vout.ScriptPubKey.ReqSigs,
+					Type:      vout.ScriptPubKey.Type,
+					Addresses: vout.ScriptPubKey.Addresses,
+				},
+			})
+		}
+		result.Vout = mulVouts
+	}
+	return result, nil
 }
 
-// GetLTCAPITransaction gets an *apitypes.Tx for a given ltc transaction ID.
-func (pgb *ChainDB) GetLTCAPITransaction(txid string) (any, error) {
+// GetLTCDaemonTransaction gets an *apitypes.Tx for a given ltc transaction ID.
+func (pgb *ChainDB) GetLTCDaemonTransaction(txid string) (*apitypes.MultichainTxRaw, error) {
 	txHash, err := ltc_chainhash.NewHashFromStr(txid)
 	if err != nil {
 		return nil, err
 	}
 	txraw, err := pgb.LtcClient.GetRawTransactionVerbose(txHash)
 	if err != nil {
-		log.Errorf("GetLTCAPITransaction failed for %v: %v", txid, err)
+		log.Errorf("GetLTCDaemonTransaction failed for %v: %v", txid, err)
 		return nil, err
 	}
 
-	return txraw, nil
+	result := &apitypes.MultichainTxRaw{
+		Hex:           txraw.Hex,
+		Txid:          txraw.Txid,
+		Hash:          txraw.Hash,
+		Size:          txraw.Size,
+		Vsize:         txraw.Vsize,
+		Weight:        txraw.Weight,
+		Version:       txraw.Version,
+		LockTime:      txraw.LockTime,
+		BlockHash:     txraw.BlockHash,
+		Confirmations: txraw.Confirmations,
+		Time:          txraw.Time,
+		Blocktime:     txraw.Blocktime,
+	}
+	if len(txraw.Vin) > 0 {
+		mulVins := make([]apitypes.MultichainTxIn, 0)
+		for _, vin := range txraw.Vin {
+			mulVin := apitypes.MultichainTxIn{
+				Coinbase: vin.Coinbase,
+				Txid:     vin.Txid,
+				Vout:     vin.Vout,
+				Sequence: vin.Sequence,
+				Witness:  vin.Witness,
+			}
+			if vin.ScriptSig != nil {
+				mulVin.ScriptSig = &apitypes.MultichainScriptSig{
+					Asm: vin.ScriptSig.Asm,
+					Hex: vin.ScriptSig.Hex,
+				}
+			}
+			mulVins = append(mulVins, mulVin)
+		}
+		result.Vin = mulVins
+	}
+
+	if len(txraw.Vout) > 0 {
+		mulVouts := make([]apitypes.MultichainTxOut, 0)
+		for _, vout := range txraw.Vout {
+			mulVouts = append(mulVouts, apitypes.MultichainTxOut{
+				Value: vout.Value,
+				N:     vout.N,
+				ScriptPubKeyDecoded: apitypes.MultichainScriptPubKey{
+					Asm:       vout.ScriptPubKey.Asm,
+					Hex:       vout.ScriptPubKey.Hex,
+					ReqSigs:   vout.ScriptPubKey.ReqSigs,
+					Type:      vout.ScriptPubKey.Type,
+					Addresses: vout.ScriptPubKey.Addresses,
+				},
+			})
+		}
+		result.Vout = mulVouts
+	}
+	return result, nil
 }
 
 // GetMultichainTransactionVerbose return verbose of multichain tx
-func (pgb *ChainDB) GetMultichainTransactionVerbose(txid, chainType string) (any, error) {
+func (pgb *ChainDB) GetMultichainTransactionVerbose(txid, chainType string) (*apitypes.MultichainTxRaw, error) {
 	switch chainType {
 	case mutilchain.TYPEBTC:
-		return pgb.GetBTCAPITransaction(txid)
+		return pgb.GetBTCDaemonTransaction(txid)
 	case mutilchain.TYPELTC:
-		return pgb.GetLTCAPITransaction(txid)
+		return pgb.GetLTCDaemonTransaction(txid)
 	}
 	return nil, fmt.Errorf("GetMultichainTransactionVerbose chaintype invalid")
 }
@@ -8473,6 +8617,158 @@ func (pgb *ChainDB) GetAllTxOut(txid *chainhash.Hash) []*apitypes.TxOut {
 	}
 
 	return allTxOut
+}
+
+// GetMultichainAllTxIn gets all transaction inputs, as a slice of *apitypes.MultichainTxIn, for
+// a given chainType, transaction ID.
+func (pgb *ChainDB) GetMultichainAllTxIn(chainType string, txid string) ([]*apitypes.MultichainTxIn, error) {
+	switch chainType {
+	case mutilchain.TYPEBTC:
+		return pgb.GetBTCAllTxIn(txid)
+	case mutilchain.TYPELTC:
+		return pgb.GetLTCAllTxIn(txid)
+	default:
+		return nil, fmt.Errorf("GetMultichainAllTxIn: no support for : %s", chainType)
+	}
+}
+
+// Get Bitcoin txouts for tx
+func (pgb *ChainDB) GetBTCAllTxIn(txid string) ([]*apitypes.MultichainTxIn, error) {
+	txhash, err := btc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.BtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[BTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txins := tx.Vin
+	allTxIn := make([]*apitypes.MultichainTxIn, 0, len(txins))
+	for _, txin := range txins {
+		mulTxIn := &apitypes.MultichainTxIn{
+			Coinbase: txin.Coinbase,
+			Txid:     txin.Txid,
+			Vout:     txin.Vout,
+			Sequence: txin.Sequence,
+			Witness:  txin.Witness,
+		}
+		if txin.ScriptSig != nil {
+			mulTxIn.ScriptSig = &apitypes.MultichainScriptSig{
+				Asm: txin.ScriptSig.Asm,
+				Hex: txin.ScriptSig.Hex,
+			}
+		}
+		allTxIn = append(allTxIn, mulTxIn)
+	}
+	return allTxIn, nil
+}
+
+// Get Litecoin txins for tx
+func (pgb *ChainDB) GetLTCAllTxIn(txid string) ([]*apitypes.MultichainTxIn, error) {
+	txhash, err := ltc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.LtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[LTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txins := tx.Vin
+	allTxIn := make([]*apitypes.MultichainTxIn, 0, len(txins))
+	for _, txin := range txins {
+		mulTxIn := &apitypes.MultichainTxIn{
+			Coinbase: txin.Coinbase,
+			Txid:     txin.Txid,
+			Vout:     txin.Vout,
+			Sequence: txin.Sequence,
+			Witness:  txin.Witness,
+		}
+		if txin.ScriptSig != nil {
+			mulTxIn.ScriptSig = &apitypes.MultichainScriptSig{
+				Asm: txin.ScriptSig.Asm,
+				Hex: txin.ScriptSig.Hex,
+			}
+		}
+		allTxIn = append(allTxIn, mulTxIn)
+	}
+	return allTxIn, nil
+}
+
+// GetMultichainAllTxOut gets all transaction outputs, as a slice of *apitypes.MultichainTxOut, for
+// a given chainType, transaction ID.
+func (pgb *ChainDB) GetMultichainAllTxOut(chainType string, txid string) ([]*apitypes.MultichainTxOut, error) {
+	switch chainType {
+	case mutilchain.TYPEBTC:
+		return pgb.GetBTCAllTxOut(txid)
+	case mutilchain.TYPELTC:
+		return pgb.GetLTCAllTxOut(txid)
+	default:
+		return nil, fmt.Errorf("GetMultichainAllTxOut: no support for : %s", chainType)
+	}
+}
+
+// Get Bitcoin txouts for tx
+func (pgb *ChainDB) GetBTCAllTxOut(txid string) ([]*apitypes.MultichainTxOut, error) {
+	txhash, err := btc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.BtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[BTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txouts := tx.Vout
+	allTxOut := make([]*apitypes.MultichainTxOut, 0, len(txouts))
+	for i := range txouts {
+		// chainjson.Vout and apitypes.TxOut are the same except for N.
+		spk := &tx.Vout[i].ScriptPubKey
+		allTxOut = append(allTxOut, &apitypes.MultichainTxOut{
+			Value: txouts[i].Value,
+			N:     txouts[i].N,
+			ScriptPubKeyDecoded: apitypes.MultichainScriptPubKey{
+				Asm:       spk.Asm,
+				Hex:       spk.Hex,
+				ReqSigs:   spk.ReqSigs,
+				Type:      spk.Type,
+				Addresses: spk.Addresses,
+			},
+		})
+	}
+	return allTxOut, nil
+}
+
+// Get Litecoin txouts for tx
+func (pgb *ChainDB) GetLTCAllTxOut(txid string) ([]*apitypes.MultichainTxOut, error) {
+	txhash, err := ltc_chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := pgb.LtcClient.GetRawTransactionVerbose(txhash)
+	if err != nil {
+		log.Warnf("[LTC] Unknown transaction %s", txid)
+		return nil, err
+	}
+	txouts := tx.Vout
+	allTxOut := make([]*apitypes.MultichainTxOut, 0, len(txouts))
+	for i := range txouts {
+		// chainjson.Vout and apitypes.TxOut are the same except for N.
+		spk := &tx.Vout[i].ScriptPubKey
+		allTxOut = append(allTxOut, &apitypes.MultichainTxOut{
+			Value: txouts[i].Value,
+			N:     txouts[i].N,
+			ScriptPubKeyDecoded: apitypes.MultichainScriptPubKey{
+				Asm:       spk.Asm,
+				Hex:       spk.Hex,
+				ReqSigs:   spk.ReqSigs,
+				Type:      spk.Type,
+				Addresses: spk.Addresses,
+			},
+		})
+	}
+	return allTxOut, nil
 }
 
 // GetStakeDiffEstimates gets an *apitypes.StakeDiff, which is a combo of

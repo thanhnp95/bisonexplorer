@@ -322,6 +322,15 @@ func GetMultichainTxID(r *http.Request) (string, string) {
 	return chainType, hashStr
 }
 
+func GetTxhashStrCtx(r *http.Request) (string, error) {
+	hashStr, ok := r.Context().Value(ctxTxHash).(string)
+	if !ok {
+		apiLog.Trace("txid not set")
+		return "", fmt.Errorf("txid not set")
+	}
+	return hashStr, nil
+}
+
 // GetTxnsCtx retrieves the ctxTxns data from the request context. If not set,
 // the return value is an empty string slice.
 func GetTxnsCtx(r *http.Request) ([]*chainhash.Hash, error) {
@@ -416,6 +425,40 @@ func GetBlockHashCtx(r *http.Request) (string, error) {
 	}
 
 	return hashStr, nil
+}
+
+func GetBlockHashStrCtx(r *http.Request) (string, error) {
+	hashStr, ok := r.Context().Value(ctxBlockHash).(string)
+	if !ok {
+		apiLog.Trace("block hash not set")
+		return "", fmt.Errorf("block hash not set")
+	}
+	return hashStr, nil
+}
+
+func GetMultichainBlockHeightCtx(r *http.Request) (int, error) {
+	blockHeight, ok := r.Context().Value(ctxBlockIndex).(int)
+	if !ok {
+		apiLog.Trace("block height not set")
+		return -1, fmt.Errorf("block height not set")
+	}
+	return blockHeight, nil
+}
+
+// GetMultichainAddressCtx retrieves the CtxAddress and ctxChainType data from the request context.
+// If not set, the return value is an empty strings.
+func GetMultichainAddressCtx(r *http.Request) (string, string) {
+	addressStr, ok := r.Context().Value(CtxAddress).(string)
+	if !ok {
+		apiLog.Trace("address not set")
+		return "", ""
+	}
+	chainType, ok := r.Context().Value(ctxChainType).(string)
+	if !ok {
+		apiLog.Trace("chain type not set")
+		return "", ""
+	}
+	return chainType, addressStr
 }
 
 // GetAddressCtx returns a slice of base-58 encoded addresses parsed from the
@@ -751,6 +794,26 @@ func TransactionHashCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		txid := chi.URLParam(r, "txid")
 		ctx := context.WithValue(r.Context(), ctxTxHash, txid)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// SimpleAddressCtx returns a http.HandlerFunc that embeds the value at the
+// url part {address} into the request context.
+func SimpleAddressCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		address := chi.URLParam(r, "address")
+		ctx := context.WithValue(r.Context(), CtxAddress, address)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// ChainTypeCtx returns a http.HandlerFunc that embeds the value at the
+// url part {chaintype} into the request context.
+func ChainTypeCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chainType := chi.URLParam(r, "chaintype")
+		ctx := context.WithValue(r.Context(), ctxChainType, chainType)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

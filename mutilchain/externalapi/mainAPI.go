@@ -36,13 +36,13 @@ const (
 
 var APIList = []string{BLockchainAPI, BitapsAPI}
 
-func GetAPIMutilchainAddressDetails(okLinkAPIKey, address string, chainType string, limit, offset, chainHeight int64, txnType dbtypes.AddrTxnViewType) (*APIAddressInfo, error) {
+func GetAPIMutilchainAddressDetails(okLinkAPIKey, address string, chainType string, limit, offset, chainHeight int64) (*APIAddressInfo, error) {
 	for _, api := range APIList {
 		if chainType == mutilchain.TYPELTC && api == BLockchainAPI {
 			continue
 		}
 		//Get from API
-		addrInfo, err := GetAddressDetailsByAPIEnv(okLinkAPIKey, address, chainType, api, limit, offset, chainHeight, txnType)
+		addrInfo, err := GetAddressDetailsByAPIEnv(okLinkAPIKey, address, chainType, api, limit, offset, chainHeight)
 		if err == nil {
 			return addrInfo, nil
 		}
@@ -50,12 +50,12 @@ func GetAPIMutilchainAddressDetails(okLinkAPIKey, address string, chainType stri
 	return nil, fmt.Errorf("%s", "Get address info from all API failed")
 }
 
-func GetAddressDetailsByAPIEnv(okLinkAPIKey, address, chainType, apiType string, limit, offset, chainHeight int64, txnType dbtypes.AddrTxnViewType) (*APIAddressInfo, error) {
+func GetAddressDetailsByAPIEnv(okLinkAPIKey, address, chainType, apiType string, limit, offset, chainHeight int64) (*APIAddressInfo, error) {
 	switch apiType {
 	case BLockchainAPI:
 		return GetBlockchainInfoAddressInfoAPI(address, chainType, limit, offset, chainHeight)
 	case BitapsAPI:
-		return GetBitapsAddressInfoAPI(address, chainType, limit, offset, txnType)
+		return GetBitapsAddressInfoAPI(address, chainType, limit, offset)
 	default:
 		return nil, fmt.Errorf("%s%s", "Get by API failed, API type:", apiType)
 	}

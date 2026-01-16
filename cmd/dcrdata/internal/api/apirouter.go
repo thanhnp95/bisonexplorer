@@ -314,6 +314,58 @@ func NewAPIRouter(app *appContext, JSONIndent string, useRealIP, compressLarge b
 	mux.Route("/xmr", func(r chi.Router) {
 		r.Get("/decode-output", app.MoneroDecodeOutputs)
 		r.Get("/prove-tx", app.MoneroProveTx)
+		r.Get("/transactions", app.getMoneroTransactions)
+		r.Route("/block", func(rd chi.Router) {
+			rd.Route("/hash/{blockhash}", func(re chi.Router) {
+				re.Use(m.BlockHashPathCtx)
+				re.Get("/", app.getMoneroBlockSummary)
+			})
+			rd.Route("/{idx}", func(re chi.Router) {
+				re.Use(m.BlockIndexPathCtx)
+				re.Get("/", app.getMoneroBlockSummary)
+			})
+		})
+		r.Get("/mempool", app.getMoneroMempool)
+		r.Get("/networkinfo", app.getMoneroNetworkInfo)
+		r.Route("/rawtransaction", func(rd chi.Router) {
+			rd.Route("/{txid}", func(ri chi.Router) {
+				ri.Use(m.TransactionHashCtx)
+				ri.Get("/", app.getMoneroTransactionRaw)
+			})
+		})
+	})
+
+	mux.Route("/{chaintype}", func(r chi.Router) {
+		r.Use(m.ChainTypeCtx)
+		r.Route("/tx", func(rt chi.Router) {
+			rt.Route("/{txid}", func(rd chi.Router) {
+				rd.Use(m.TransactionHashCtx)
+				rd.Get("/", app.getMultichainDecodedTx)
+				rd.Route("/out", func(ro chi.Router) {
+					ro.Get("/", app.getMultichainTransactionOutputs)
+					ro.With(m.TransactionIOIndexCtx).Get("/{txinoutindex}", app.getMultichainTransactionOutput)
+				})
+				rd.Route("/in", func(ri chi.Router) {
+					ri.Get("/", app.getMultichainTransactionInputs)
+					ri.With(m.TransactionIOIndexCtx).Get("/{txinoutindex}", app.getMultichainTransactionInput)
+				})
+			})
+		})
+		r.Route("/address", func(rt chi.Router) {
+			rt.Route("/{address}", func(rd chi.Router) {
+				rd.Use(m.SimpleAddressCtx)
+				rd.Get("/totals", app.multichainAddressTotals)
+				rd.Get("/", app.getMultichainDBAddressTransactions)
+				rd.Route("/count/{N}", func(re chi.Router) {
+					re.Use(m.NPathCtx)
+					re.Get("/", app.getMultichainDBAddressTransactions)
+					re.Route("/skip/{M}", func(ri chi.Router) {
+						ri.Use(m.MPathCtx)
+						ri.Get("/", app.getMultichainDBAddressTransactions)
+					})
+				})
+			})
+		})
 	})
 
 	mux.NotFound(func(w http.ResponseWriter, r *http.Request) {

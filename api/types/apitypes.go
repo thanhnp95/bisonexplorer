@@ -364,6 +364,21 @@ type TxOut struct {
 	ScriptPubKeyDecoded ScriptPubKey `json:"scriptPubKey"`
 }
 
+// MultichainTxOut defines multichain tx output.
+type MultichainTxOut struct {
+	Value               float64                `json:"value"`
+	N                   uint32                 `json:"n"`
+	ScriptPubKeyDecoded MultichainScriptPubKey `json:"scriptPubKey"`
+}
+
+type MultichainScriptPubKey struct {
+	Asm       string   `json:"asm"`
+	Hex       string   `json:"hex"`
+	ReqSigs   int32    `json:"reqSigs,omitempty"`
+	Type      string   `json:"type"`
+	Addresses []string `json:"addresses,omitempty"`
+}
+
 // TxIn defines a decred transaction input.
 type TxIn struct {
 	// Non-witness
@@ -377,6 +392,21 @@ type TxIn struct {
 	SignatureScript string  `json:"sigscript"`
 }
 
+// MultichainTxIn defines a decred transaction input.
+type MultichainTxIn struct {
+	Coinbase  string               `json:"coinbase"`
+	Txid      string               `json:"txid"`
+	Vout      uint32               `json:"vout"`
+	ScriptSig *MultichainScriptSig `json:"scriptSig"`
+	Sequence  uint32               `json:"sequence"`
+	Witness   []string             `json:"txinwitness"`
+}
+
+type MultichainScriptSig struct {
+	Asm string `json:"asm"`
+	Hex string `json:"hex"`
+}
+
 // OutPoint is used to track previous transaction outputs.
 type OutPoint struct {
 	Hash  string `json:"hash"`
@@ -384,10 +414,32 @@ type OutPoint struct {
 	Tree  int8   `json:"tree"`
 }
 
+type MultichainTxRaw struct {
+	Hex           string            `json:"hex"`
+	Txid          string            `json:"txid"`
+	Hash          string            `json:"hash,omitempty"`
+	Size          int32             `json:"size,omitempty"`
+	Vsize         int32             `json:"vsize,omitempty"`
+	Weight        int32             `json:"weight,omitempty"`
+	Version       uint32            `json:"version"`
+	LockTime      uint32            `json:"locktime"`
+	Vin           []MultichainTxIn  `json:"vin"`
+	Vout          []MultichainTxOut `json:"vout"`
+	BlockHash     string            `json:"blockhash,omitempty"`
+	Confirmations uint64            `json:"confirmations,omitempty"`
+	Time          int64             `json:"time,omitempty"`
+	Blocktime     int64             `json:"blocktime,omitempty"`
+}
+
 // Address models the address string with the transactions as AddressTxShort
 type Address struct {
 	Address      string            `json:"address"`
 	Transactions []*AddressTxShort `json:"address_transactions"`
+}
+
+type MultichainAddress struct {
+	Address      string             `json:"address"`
+	Transactions []*MultichainTxRaw `json:"address_transactions"`
 }
 
 // ScriptSig models the signature script used to redeem a transaction output.
@@ -510,6 +562,17 @@ type AddressTotals struct {
 	NumUnspent   int64   `json:"num_utxos"`
 	CoinsSpent   float64 `json:"dcr_spent"`
 	CoinsUnspent float64 `json:"dcr_unspent"`
+}
+
+type MultichainAddressTotals struct {
+	Address       string  `json:"address"`
+	BlockHash     string  `json:"blockhash"`
+	BlockHeight   uint64  `json:"blockheight"`
+	NumSpent      int64   `json:"num_spent"`
+	NumUnspent    int64   `json:"num_utxos"`
+	CoinsSpent    float64 `json:"coin_spent"`
+	CoinsUnspent  float64 `json:"coin_unspent"`
+	TotalReceived float64 `json:"total_received"`
 }
 
 // BlockDataWithTxType adds an array of TxRawWithTxType to

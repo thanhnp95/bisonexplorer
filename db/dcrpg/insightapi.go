@@ -440,3 +440,27 @@ func (pgb *ChainDB) MoneroDecodeOutputs(txid, address, viewkey string) ([]extern
 func (pgb *ChainDB) MoneroProveOutputs(txid, address, txkey string) ([]externalapi.TxOutput, error) {
 	return externalapi.DecodeOutputs(pgb.xmrApiServ, txid, address, txkey, true)
 }
+
+func (pgb *ChainDB) GetMoneroTransaction(txhash string) (any, error) {
+	return externalapi.GetTransaction(pgb.xmrApiServ, txhash)
+}
+
+func (pgb *ChainDB) GetMoneroLastestTransactions() (any, error) {
+	return externalapi.GetLastestTransactions(pgb.xmrApiServ)
+}
+
+func (pgb *ChainDB) GetMoneroBlockDetail(heightOrHash string) (any, error) {
+	return externalapi.GetBlockDetail(pgb.xmrApiServ, heightOrHash)
+}
+
+func (pgb *ChainDB) GetMoneroMempoolDetail() (any, error) {
+	return externalapi.GetMempoolDetail(pgb.xmrApiServ)
+}
+
+func (pgb *ChainDB) GetMoneroNetworkInfo() (any, error) {
+	return externalapi.GetNetworkInfo(pgb.xmrApiServ)
+}
+
+func (pgb *ChainDB) GetMoneroRawTransaction(txhash string) (any, error) {
+	return externalapi.GetRawTransaction(pgb.xmrApiServ, txhash)
+}

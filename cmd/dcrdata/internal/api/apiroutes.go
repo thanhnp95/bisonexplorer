@@ -69,9 +69,10 @@ type DataSource interface {
 	FillAddressTransactions(addrInfo *dbtypes.AddressInfo) error
 	AddressTransactionDetails(addr string, count, skip int64,
 		txnType dbtypes.AddrTxnViewType) (*apitypes.Address, error)
-	MutilchainAddressTransactionDetails(addr, chainType string, count, skip int64,
-		txnType dbtypes.AddrTxnViewType) (*apitypes.Address, error)
+	MutilchainAddressTransactionDetails(addr, chainType string, count, skip int64) (*apitypes.Address, error)
+	MutilchainDBAddressTransactionDetails(addr, chainType string, count, skip int64) (*apitypes.MultichainAddress, error)
 	AddressTotals(address string) (*apitypes.AddressTotals, error)
+	MultichainAddressTotals(chainType, address string) (*apitypes.MultichainAddressTotals, error)
 	VotesInBlock(hash string) (int16, error)
 	TxHistoryData(address string, addrChart dbtypes.HistoryChart,
 		chartGroupings dbtypes.TimeBasedGrouping) (*dbtypes.ChartsData, error)
@@ -110,6 +111,8 @@ type DataSource interface {
 	GetStakeVersionsLatest() (*chainjson.StakeVersions, error)
 	GetAllTxIn(txid *chainhash.Hash) []*apitypes.TxIn
 	GetAllTxOut(txid *chainhash.Hash) []*apitypes.TxOut
+	GetMultichainAllTxIn(chainType string, txid string) ([]*apitypes.MultichainTxIn, error)
+	GetMultichainAllTxOut(chainType string, txid string) ([]*apitypes.MultichainTxOut, error)
 	GetTransactionsForBlockByHash(hash string) *apitypes.BlockTransactions
 	GetStakeDiffEstimates() *apitypes.StakeDiff
 	GetSummary(idx int) *apitypes.BlockDataBasic
@@ -151,12 +154,18 @@ type DataSource interface {
 	GetTreasurySummaryAllYear() ([]dbtypes.TreasurySummary, error)
 	GetLegacySummaryAllYear() ([]dbtypes.TreasurySummary, error)
 	GetMultichainTransactionHex(txid, chainType string) string
-	GetMultichainTransactionVerbose(txid, chainType string) (any, error)
+	GetMultichainTransactionVerbose(txid, chainType string) (*apitypes.MultichainTxRaw, error)
 	GetMultichainSwapInfoData(txid, chainType string) (swapsInfo *txhelpers.TxAtomicSwaps, err error)
 	InsertToBlackList(agent, ip, note string) error
 	CheckOnBlackList(agent, ip string) (bool, error)
 	MoneroDecodeOutputs(txid, address, viewkey string) ([]externalapi.TxOutput, error)
 	MoneroProveOutputs(txid, address, txkey string) ([]externalapi.TxOutput, error)
+	GetMoneroTransaction(txhash string) (any, error)
+	GetMoneroLastestTransactions() (any, error)
+	GetMoneroBlockDetail(heightOrHash string) (any, error)
+	GetMoneroMempoolDetail() (any, error)
+	GetMoneroNetworkInfo() (any, error)
+	GetMoneroRawTransaction(txhash string) (any, error)
 }
 
 // dcrdata application context used by all route handlers
@@ -789,13 +798,24 @@ func (c *appContext) getMultichainDecodedTx(w http.ResponseWriter, r *http.Reque
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
+	// get monero tx detail
+	if chainType == mutilchain.TYPEXMR {
+		xmrTx, err := c.DataSource.GetMoneroTransaction(txid)
+		if err != nil {
+			apiLog.Errorf("Get monero transaction failed: txid: %s", txid)
+			http.Error(w, http.StatusText(422), 422)
+			return
+		}
+		writeJSON(w, xmrTx, m.GetIndentCtx(r))
+		return
+	}
 	tx, err := c.DataSource.GetMultichainTransactionVerbose(txid, chainType)
 	if err != nil {
 		apiLog.Errorf("Unable to get multichain transaction: Type: %s, txid: %s", chainType, txid)
 		http.Error(w, http.StatusText(422), 422)
 		return
 	}
-	writeJSON(w, tx, m.GetIndentCtx(r))
+	writeJSON(w, *tx, m.GetIndentCtx(r))
 }
 
 func (c *appContext) getProposalTimeMinMax() (int64, int64, error) {
@@ -2554,6 +2574,132 @@ func (c *appContext) getTransactionOutputs(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, allTxOut, m.GetIndentCtx(r))
 }
 
+// getMultichainTransactionInputs serves []MultichainTxOut
+func (c *appContext) getMultichainTransactionInputs(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	allTxOut, err := c.DataSource.GetMultichainAllTxIn(chainType, txid)
+	// allTxOut may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Errorf("Unable to get all TxOut for %s transaction %s. Error: %v", chainType, txid, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	writeJSON(w, allTxOut, m.GetIndentCtx(r))
+}
+
+// getMultichainTransactionInput serves []MultichainTxIn
+func (c *appContext) getMultichainTransactionInput(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	index := m.GetTxIOIndexCtx(r)
+	if index < 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	allTxIn, err := c.DataSource.GetMultichainAllTxIn(chainType, txid)
+	// allTxIn may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Warnf("Unable to get all TxIn for %s transaction %s", chainType, txid)
+		http.NotFound(w, r)
+		return
+	}
+
+	if len(allTxIn) <= index {
+		apiLog.Debugf("[%s] Index %d larger than []TxIn length %d", chainType, index, len(allTxIn))
+		http.NotFound(w, r)
+		return
+	}
+
+	writeJSON(w, *allTxIn[index], m.GetIndentCtx(r))
+}
+
+// getMultichainTransactionOutputs serves []MultichainTxOut
+func (c *appContext) getMultichainTransactionOutputs(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+	allTxOut, err := c.DataSource.GetMultichainAllTxOut(chainType, txid)
+	// allTxOut may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Errorf("Unable to get all TxOut for %s transaction %s. Error: %v", chainType, txid, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	writeJSON(w, allTxOut, m.GetIndentCtx(r))
+}
+
+// getMultichainTransactionOutput serves MultichainTxOut
+func (c *appContext) getMultichainTransactionOutput(w http.ResponseWriter, r *http.Request) {
+	chainType, txid := m.GetMultichainTxID(r)
+	if chainType == "" || txid == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	index := m.GetTxIOIndexCtx(r)
+	if index < 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	allTxOut, err := c.DataSource.GetMultichainAllTxOut(chainType, txid)
+	// allTxOut may be empty, but not a nil slice
+	if err != nil {
+		apiLog.Errorf("Unable to get all TxOut for %s transaction %s. Error: %v", chainType, txid, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	if len(allTxOut) <= index {
+		apiLog.Debugf("[%s] Index %d larger than []TxOut length %d", chainType, index, len(allTxOut))
+		http.NotFound(w, r)
+		return
+	}
+
+	writeJSON(w, *allTxOut[index], m.GetIndentCtx(r))
+}
+
 // getTransactionOutput serves TxOut[i]
 func (c *appContext) getTransactionOutput(w http.ResponseWriter, r *http.Request) {
 	txid, err := m.GetTxIDCtx(r)
@@ -3130,6 +3276,35 @@ func (c *appContext) addressTotals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, totals, m.GetIndentCtx(r))
 }
 
+func (c *appContext) multichainAddressTotals(w http.ResponseWriter, r *http.Request) {
+	chainType, address := m.GetMultichainAddressCtx(r)
+	if chainType == "" || address == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	totals, err := c.DataSource.MultichainAddressTotals(chainType, address)
+	if dbtypes.IsTimeoutErr(err) {
+		apiLog.Errorf("MultichainAddressTotals: %v", err)
+		http.Error(w, "Database timeout.", http.StatusServiceUnavailable)
+		return
+	}
+	if err != nil {
+		log.Warnf("failed to get %s address totals (%s): %v", chainType, address, err)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	writeJSON(w, totals, m.GetIndentCtx(r))
+}
+
 // addressExists provides access to the existsaddresses RPC call and parses the
 // hexadecimal string into a list of bools. A maximum of 64 addresses can be
 // provided. Duplicates are not filtered.
@@ -3554,6 +3729,73 @@ func (c *appContext) MoneroProveTx(w http.ResponseWriter, r *http.Request) {
 	}, m.GetIndentCtx(r))
 }
 
+func (c *appContext) getMoneroTransactions(w http.ResponseWriter, r *http.Request) {
+	// get latest txs for monero
+	txs, err := c.DataSource.GetMoneroLastestTransactions()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, txs, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroMempool(w http.ResponseWriter, r *http.Request) {
+	mempool, err := c.DataSource.GetMoneroMempoolDetail()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, mempool, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroNetworkInfo(w http.ResponseWriter, r *http.Request) {
+	netInfo, err := c.DataSource.GetMoneroNetworkInfo()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, netInfo, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroBlockSummary(w http.ResponseWriter, r *http.Request) {
+	blockhash, _ := m.GetBlockHashStrCtx(r)
+	if blockhash == "" {
+		// get block idx
+		blockidx, _ := m.GetMultichainBlockHeightCtx(r)
+		if blockidx < 0 {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		blockhash = fmt.Sprintf("%d", blockidx)
+	}
+
+	blockDetail, err := c.DataSource.GetMoneroBlockDetail(blockhash)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, blockDetail, m.GetIndentCtx(r))
+}
+
+func (c *appContext) getMoneroTransactionRaw(w http.ResponseWriter, r *http.Request) {
+	txhash, err := m.GetTxhashStrCtx(r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	txRaw, err := c.DataSource.GetMoneroRawTransaction(txhash)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, txRaw, m.GetIndentCtx(r))
+}
+
 func (c *appContext) getAvgBlockTime(w http.ResponseWriter, r *http.Request) {
 	chartType := "duration-btw-blocks"
 	avgBlockTime, _ := c.charts.GetAverageBlockTime(chartType)
@@ -3808,6 +4050,45 @@ func (c *appContext) getAddressTransactions(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, txs, m.GetIndentCtx(r))
 }
 
+func (c *appContext) getMultichainDBAddressTransactions(w http.ResponseWriter, r *http.Request) {
+	chainType, address := m.GetMultichainAddressCtx(r)
+	if chainType == "" || address == "" {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+
+	// this function only support for utxo based blockchain
+	if chainType == mutilchain.TYPEXMR {
+		apiLog.Errorf("This API not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+	count := int64(m.GetNCtx(r))
+	skip := int64(m.GetMCtx(r))
+	if count <= 0 {
+		count = 10
+	} else if count > 8000 {
+		count = 8000
+	}
+
+	if skip <= 0 {
+		skip = 0
+	}
+
+	txs, err := c.DataSource.MutilchainDBAddressTransactionDetails(address, chainType, count, skip)
+	if dbtypes.IsTimeoutErr(err) {
+		apiLog.Errorf("MutilchainDBAddressTransactionDetails: %v", err)
+		http.Error(w, "Database timeout.", http.StatusServiceUnavailable)
+		return
+	}
+
+	if txs == nil || err != nil {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
+	writeJSON(w, *txs, m.GetIndentCtx(r))
+}
+
 func (c *appContext) getMutilchainAddressTransactions(w http.ResponseWriter, r *http.Request) {
 	if c.IsCrawlerUserAgent(r.UserAgent(), externalapi.GetIP(r)) {
 		return
@@ -3833,7 +4114,7 @@ func (c *appContext) getMutilchainAddressTransactions(w http.ResponseWriter, r *
 		skip = 0
 	}
 
-	txs, err := c.DataSource.MutilchainAddressTransactionDetails(address, chainType, count, skip, dbtypes.AddrTxnAll)
+	txs, err := c.DataSource.MutilchainAddressTransactionDetails(address, chainType, count, skip)
 	if dbtypes.IsTimeoutErr(err) {
 		apiLog.Errorf("AddressTransactionDetails: %v", err)
 		http.Error(w, "Database timeout.", http.StatusServiceUnavailable)

@@ -1870,6 +1870,7 @@ func RetrieveMutilchainAddressBalance(ctx context.Context, db *sql.DB, address s
 	balance.TotalSpent = spentValue
 	balance.NumUnspent = unspentCount
 	balance.TotalUnspent = unspentValue
+	balance.TotalReceived = spentValue + unspentValue
 	return balance, nil
 }
 
@@ -2199,19 +2200,6 @@ func RetrieveAddressTxnsOrdered(ctx context.Context, db *sql.DB, addresses []str
 // the given address.
 func RetrieveAllAddressTxns(ctx context.Context, db *sql.DB, address string) ([]*dbtypes.AddressRow, error) {
 	rows, err := db.QueryContext(ctx, internal.SelectAddressAllByAddress, address)
-	if err != nil {
-		return nil, err
-	}
-	defer closeRows(rows)
-
-	return scanAddressQueryRows(rows, creditDebitQuery)
-}
-
-// RetrieveAllMainchainAddressTxns retrieves all non-merged and valid_mainchain
-// rows of the address table pertaining to the given address. For a limited
-// query, use RetrieveAddressTxns.
-func RetrieveAllMainchainAddressTxns(ctx context.Context, db *sql.DB, address string) ([]*dbtypes.AddressRow, error) {
-	rows, err := db.QueryContext(ctx, internal.SelectAddressAllMainchainByAddress, address)
 	if err != nil {
 		return nil, err
 	}
