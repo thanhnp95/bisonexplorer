@@ -215,14 +215,18 @@ func (sk *MutilchainInfoSocket) connectWebsocket(processor WebsocketProcessor, c
 		return err
 	}
 
+	// Get the old websocket outside of lock to avoid holding lock during I/O
+	var oldWs websocketFeed
 	sk.wsMtx.Lock()
-	// Ensure that any previous websocket is closed.
-	if sk.ws != nil {
-		sk.ws.Close()
-	}
+	oldWs = sk.ws
 	sk.wsProcessor = processor
 	sk.ws = ws
 	sk.wsMtx.Unlock()
+
+	// Close the old websocket outside of lock to prevent potential hangs
+	if oldWs != nil {
+		oldWs.Close()
+	}
 
 	sk.startWebsocket()
 	return nil
@@ -244,18 +248,19 @@ func (sk *MutilchainInfoSocket) startWebsocket() {
 
 func (sk *MutilchainInfoSocket) setWsFail(err error) {
 	log.Printf("API websocket error: %v", err)
+
+	// Get references to close outside of lock to prevent potential hangs
+	var oldWs websocketFeed
+	var oldSr signalrClient
+
 	sk.wsMtx.Lock()
-	defer sk.wsMtx.Unlock()
 	if sk.ws != nil {
-		sk.ws.Close()
+		oldWs = sk.ws
 		// Clear the field to prevent double Close'ing.
 		sk.ws = nil
 	}
 	if sk.sr != nil {
-		// The carterjones/signalr can hang on Close. The goroutine is a stopgap while
-		// we migrate to a new signalr client.
-		// https://github.com/decred/dcrdata/issues/1818
-		go sk.sr.Close()
+		oldSr = sk.sr
 		// Clear the field to prevent double Close'ing. signalr will hang on
 		// second call.
 		sk.sr = nil
@@ -263,11 +268,23 @@ func (sk *MutilchainInfoSocket) setWsFail(err error) {
 	sk.wsSync.err = err
 	sk.wsSync.errCount++
 	sk.wsSync.fail = time.Now()
+	sk.wsMtx.Unlock()
+
+	// Close outside of lock to prevent potential hangs
+	if oldWs != nil {
+		oldWs.Close()
+	}
+	if oldSr != nil {
+		// The carterjones/signalr can hang on Close. The goroutine is a stopgap while
+		// we migrate to a new signalr client.
+		// https://github.com/decred/dcrdata/issues/1818
+		go oldSr.Close()
+	}
 }
 
 func (sk *MutilchainInfoSocket) websocket() (websocketFeed, WebsocketProcessor) {
-	sk.mtx.RLock()
-	defer sk.mtx.RUnlock()
+	sk.wsMtx.RLock()
+	defer sk.wsMtx.RUnlock()
 	return sk.ws, sk.wsProcessor
 }
 

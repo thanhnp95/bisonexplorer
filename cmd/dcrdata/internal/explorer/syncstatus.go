@@ -45,6 +45,29 @@ func SyncStatus() []SyncStatusInfo {
 	return blockchainSyncStatus.ProgressBars
 }
 
+// updateProgressBar updates an existing progress bar or appends a new one.
+// This function is thread-safe and uses proper defer for unlock.
+func updateProgressBar(bar *dbtypes.ProgressBarLoad, val SyncStatusInfo) {
+	blockchainSyncStatus.Lock()
+	defer blockchainSyncStatus.Unlock()
+
+	for i, v := range blockchainSyncStatus.ProgressBars {
+		if v.ProgressBarID == bar.BarID {
+			// Existing progress bar data.
+			if len(bar.Subtitle) > 0 && bar.Timestamp == 0 {
+				// Handle case scenario when only subtitle should be updated.
+				blockchainSyncStatus.ProgressBars[i].BarSubtitle = bar.Subtitle
+			} else {
+				blockchainSyncStatus.ProgressBars[i] = val
+			}
+			return
+		}
+	}
+
+	// Existing bar with this ID not found, append new.
+	blockchainSyncStatus.ProgressBars = append(blockchainSyncStatus.ProgressBars, val)
+}
+
 // ShowingSyncStatusPage is a thread-safe way to fetch the
 // displaySyncStatusPage.
 func (exp *ExplorerUI) ShowingSyncStatusPage() bool {
@@ -107,7 +130,6 @@ func (exp *ExplorerUI) BeginSyncStatusUpdates(barLoad chan *dbtypes.ProgressBarL
 			exp.EnableSyncStatusPage(false)
 		}()
 
-	barloop:
 		for bar := range barLoad {
 			if bar == nil {
 				stopTimer <- struct{}{}
@@ -128,25 +150,7 @@ func (exp *ExplorerUI) BeginSyncStatusUpdates(barLoad chan *dbtypes.ProgressBarL
 			}
 
 			// Update existing progress bar if one is found with this ID.
-			blockchainSyncStatus.Lock()
-			for i, v := range blockchainSyncStatus.ProgressBars {
-				if v.ProgressBarID == bar.BarID {
-					// Existing progress bar data.
-					if len(bar.Subtitle) > 0 && bar.Timestamp == 0 {
-						// Handle case scenario when only subtitle should be updated.
-						blockchainSyncStatus.ProgressBars[i].BarSubtitle = bar.Subtitle
-					} else {
-						blockchainSyncStatus.ProgressBars[i] = val
-					}
-					// Go back to waiting for updates.
-					blockchainSyncStatus.Unlock()
-					continue barloop
-				}
-			}
-
-			// Existing bar with this ID not found, append new.
-			blockchainSyncStatus.ProgressBars = append(blockchainSyncStatus.ProgressBars, val)
-			blockchainSyncStatus.Unlock()
+			updateProgressBar(bar, val)
 		}
 	}()
 }

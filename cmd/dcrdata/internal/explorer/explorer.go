@@ -678,37 +678,37 @@ func (exp *ExplorerUI) MempoolSignal() chan<- pstypes.HubMessage {
 func (exp *ExplorerUI) StoreMPData(_ *mempool.StakeData, _ []types.MempoolTx, inv *types.MempoolInfo) {
 	// Get exclusive access to the Mempool field.
 	exp.invsMtx.Lock()
+	defer exp.invsMtx.Unlock()
 	exp.invs = inv
-	exp.invsMtx.Unlock()
 	log.Debugf("Updated mempool details for the explorerUI.")
 }
 
 func (exp *ExplorerUI) StoreLTCMPData(_ []types.MempoolTx, inv *types.MutilchainMempoolInfo) {
 	// Get exclusive access to the Mempool field.
 	exp.invsMtx.Lock()
+	defer exp.invsMtx.Unlock()
 	exp.LtcMempoolInfo = inv
-	exp.invsMtx.Unlock()
 	log.Debugf("Updated mempool details for the explorerUI.")
 }
 
 func (exp *ExplorerUI) StoreBTCMPData(_ []types.MempoolTx, inv *types.MutilchainMempoolInfo) {
 	// Get exclusive access to the Mempool field.
 	exp.invsMtx.Lock()
+	defer exp.invsMtx.Unlock()
 	exp.BtcMempoolInfo = inv
-	exp.invsMtx.Unlock()
 	log.Debugf("Updated mempool details for the explorerUI.")
 }
 
 func (exp *ExplorerUI) StoreMutilchainMPData(chainType string, inv *types.MutilchainMempoolInfo) {
 	// Get exclusive access to the Mempool field.
 	exp.invsMtx.Lock()
+	defer exp.invsMtx.Unlock()
 	switch chainType {
 	case mutilchain.TYPEBTC:
 		exp.BtcMempoolInfo = inv
 	case mutilchain.TYPELTC:
 		exp.LtcMempoolInfo = inv
 	}
-	exp.invsMtx.Unlock()
 	log.Debugf("Updated mutilchain mempool details for the explorerUI.")
 }
 
@@ -1636,10 +1636,10 @@ func (exp *ExplorerUI) GetMutilchainChartData(chainType string) *cache.Mutilchai
 func (exp *ExplorerUI) ChartsUpdated() {
 	anonSet := exp.chartSource.AnonymitySet()
 	exp.pageData.Lock()
+	defer exp.pageData.Unlock()
 	if exp.pageData.HomeInfo.CoinSupply > 0 {
 		exp.pageData.HomeInfo.MixedPercent = float64(anonSet) / float64(exp.pageData.HomeInfo.CoinSupply) * 100
 	}
-	exp.pageData.Unlock()
 }
 
 func (exp *ExplorerUI) updateDevFundBalance() {
@@ -1649,8 +1649,8 @@ func (exp *ExplorerUI) updateDevFundBalance() {
 	devBalance, err := exp.dataSource.DevBalance()
 	if err == nil && devBalance != nil {
 		exp.pageData.Lock()
+		defer exp.pageData.Unlock()
 		exp.pageData.HomeInfo.DevFund = devBalance.TotalUnspent
-		exp.pageData.Unlock()
 	} else {
 		log.Errorf("ExplorerUI.updateDevFundBalance failed: %v", err)
 	}
