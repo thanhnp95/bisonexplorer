@@ -1,6 +1,8 @@
 module github.com/decred/dcrdata/pubsub/democlient
 
-go 1.18
+go 1.21
+
+toolchain go1.24.2
 
 replace github.com/decred/dcrdata/v8 => ../../
 

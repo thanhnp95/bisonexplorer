@@ -325,6 +325,12 @@ func NewAPIRouter(app *appContext, JSONIndent string, useRealIP, compressLarge b
 				re.Get("/", app.getMoneroBlockSummary)
 			})
 		})
+		r.Route("/tx", func(rd chi.Router) {
+			rd.Route("/{txid}", func(re chi.Router) {
+				re.Use(m.TransactionHashCtx)
+				re.Get("/", app.getMoneroTransactionDetail)
+			})
+		})
 		r.Get("/mempool", app.getMoneroMempool)
 		r.Get("/networkinfo", app.getMoneroNetworkInfo)
 		r.Route("/rawtransaction", func(rd chi.Router) {

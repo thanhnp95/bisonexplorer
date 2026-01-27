@@ -2319,17 +2319,17 @@ func _main(ctx context.Context) error {
 
 func connectNodeRPC(cfg *config, ntfnHandlers *rpcclient.NotificationHandlers) (*rpcclient.Client, semver.Semver, error) {
 	return rpcutils.ConnectNodeRPC(cfg.DcrdServ, cfg.DcrdUser, cfg.DcrdPass,
-		cfg.DcrdCert, cfg.DisableDaemonTLS, true, ntfnHandlers)
+		cfg.DcrdCert, cfg.DisableDaemonTLS, false, ntfnHandlers)
 }
 
 func connectLTCNodeRPC(cfg *config, ntfnHandlers *ltcClient.NotificationHandlers) (*ltcClient.Client, semver.Semver, error) {
 	return ltcrpcutils.ConnectNodeRPC(cfg.LtcdServ, cfg.LtcdUser, cfg.LtcdPass,
-		cfg.LtcdCert, cfg.DisableDaemonTLS, true, ntfnHandlers)
+		cfg.LtcdCert, cfg.DisableDaemonTLS, false, ntfnHandlers)
 }
 
 func connectBTCNodeRPC(cfg *config, ntfnHandlers *btcClient.NotificationHandlers) (*btcClient.Client, semver.Semver, error) {
 	return btcrpcutils.ConnectNodeRPC(cfg.BtcdServ, cfg.BtcdUser, cfg.BtcdPass,
-		cfg.BtcdCert, cfg.DisableDaemonTLS, true, ntfnHandlers)
+		cfg.BtcdCert, cfg.DisableDaemonTLS, false, ntfnHandlers)
 }
 
 func listenAndServeProto(ctx context.Context, wg *sync.WaitGroup, listen, proto string, mux http.Handler) {
