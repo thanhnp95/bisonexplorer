@@ -801,13 +801,8 @@ func (c *appContext) getMultichainDecodedTx(w http.ResponseWriter, r *http.Reque
 	}
 	// get monero tx detail
 	if chainType == mutilchain.TYPEXMR {
-		xmrTx, err := c.DataSource.GetMoneroTransaction(txid)
-		if err != nil {
-			apiLog.Errorf("Get monero transaction failed: txid: %s", txid)
-			http.Error(w, http.StatusText(422), 422)
-			return
-		}
-		writeJSON(w, xmrTx, m.GetIndentCtx(r))
+		apiLog.Errorf("This path not support for %s", chainType)
+		http.Error(w, http.StatusText(422), 422)
 		return
 	}
 	tx, err := c.DataSource.GetMultichainTransactionVerbose(txid, chainType)
@@ -3797,6 +3792,21 @@ func (c *appContext) getMoneroTransactionRaw(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, txRaw, m.GetIndentCtx(r))
 }
 
+func (c *appContext) getMoneroTransactionDetail(w http.ResponseWriter, r *http.Request) {
+	txhash, err := m.GetTxhashStrCtx(r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	txDetail, err := c.DataSource.GetMoneroTransaction(txhash)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, txDetail, m.GetIndentCtx(r))
+}
+
 func (c *appContext) getAvgBlockTime(w http.ResponseWriter, r *http.Request) {
 	chartType := "duration-btw-blocks"
 	avgBlockTime, _ := c.charts.GetAverageBlockTime(chartType)
@@ -4425,7 +4435,6 @@ func (c *appContext) IsCrawlerUserAgent(userAgent, ip string) bool {
 	}
 	return agents.IsCrawler(userAgent)
 }
-
 
 // IsCrawlerUserAgent return if is crawler user agent
 func (c *appContext) IsCrawlerUserAgentAdvance(userAgent, ip string) bool {
