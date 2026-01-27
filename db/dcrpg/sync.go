@@ -15,22 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcd/btcutil"
-	btcchaincfg "github.com/btcsuite/btcd/chaincfg"
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrdata/db/dcrpg/v8/internal"
-	"github.com/decred/dcrdata/db/dcrpg/v8/internal/mutilchainquery"
 	"github.com/decred/dcrdata/v8/db/dbtypes"
 	"github.com/decred/dcrdata/v8/mutilchain"
 	"github.com/decred/dcrdata/v8/rpcutils"
 	"github.com/decred/dcrdata/v8/txhelpers"
-	"github.com/decred/dcrdata/v8/txhelpers/btctxhelper"
-	"github.com/decred/dcrdata/v8/txhelpers/ltctxhelper"
-	ltcchaincfg "github.com/ltcsuite/ltcd/chaincfg"
-	"github.com/ltcsuite/ltcd/ltcutil"
 )
 
 const (
@@ -1857,188 +1850,6 @@ func (pgb *ChainDB) SyncDecredAtomicSwapData(height int64) error {
 	return nil
 }
 
-func (pgb *ChainDB) SyncLTCAtomicSwap() error {
-	// Get list of unsynchronized ltc blocks atomic swap transaction
-	var ltcSyncHeights []int64
-	rows, err := pgb.db.QueryContext(pgb.ctx, mutilchainquery.MakeSelectBlocksUnsynchoronized(mutilchain.TYPELTC))
-	if err != nil {
-		log.Errorf("Get list of unsynchronized ltc blocks failed %v", err)
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var ltcHeight int64
-		if err = rows.Scan(&ltcHeight); err != nil {
-			log.Errorf("Scan litecoin blocks unsync failed %v", err)
-			return err
-		}
-		ltcSyncHeights = append(ltcSyncHeights, ltcHeight)
-	}
-	if err = rows.Err(); err != nil {
-		log.Errorf("Scan litecoin blocks unsync failed %v", err)
-		return err
-	}
-	for _, syncHeight := range ltcSyncHeights {
-		err = pgb.SyncLTCAtomicSwapData(syncHeight)
-		if err != nil {
-			log.Errorf("Scan litecoin blocks unsync failed %v", err)
-			return err
-		}
-	}
-	return nil
-}
-
-func (pgb *ChainDB) SyncBTCAtomicSwap() error {
-	// Get list of unsynchronized btc blocks atomic swap transaction
-	var btcSyncHeights []int64
-	rows, err := pgb.db.QueryContext(pgb.ctx, mutilchainquery.MakeSelectBlocksUnsynchoronized(mutilchain.TYPEBTC))
-	if err != nil {
-		log.Errorf("Get list of unsynchronized btc blocks failed %v", err)
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var btcHeight int64
-		if err = rows.Scan(&btcHeight); err != nil {
-			log.Errorf("Scan bitcoin blocks unsync failed %v", err)
-			return err
-		}
-		btcSyncHeights = append(btcSyncHeights, btcHeight)
-	}
-	if err = rows.Err(); err != nil {
-		log.Errorf("Scan bitcoin blocks unsync failed %v", err)
-		return err
-	}
-	for _, syncHeight := range btcSyncHeights {
-		err = pgb.SyncBTCAtomicSwapData(syncHeight)
-		if err != nil {
-			log.Errorf("Scan bitcoin blocks unsync failed %v", err)
-			return err
-		}
-	}
-	return nil
-}
-
-func (pgb *ChainDB) SyncBTCAtomicSwapData(height int64) error {
-	log.Debugf("Start Sync BTC swap data with height: %d", height)
-	blockhash, err := pgb.BtcClient.GetBlockHash(height)
-	if err != nil {
-		return err
-	}
-
-	msgBlock, err := pgb.BtcClient.GetBlock(blockhash)
-	if err != nil {
-		return err
-	}
-	// delete 24h before dump data from BTC swaps table
-	_, err = DeleteDumpMultichainSwapData(pgb.db, mutilchain.TYPEBTC)
-	if err != nil {
-		return err
-	}
-	// Check all regular tree txns except coinbase.
-	for _, tx := range msgBlock.Transactions[1:] {
-		swapRes, err := btctxhelper.MsgTxAtomicSwapsInfo(tx, nil, pgb.btcChainParams)
-		if err != nil {
-			return err
-		}
-		if swapRes == nil || swapRes.Found == "" {
-			continue
-		}
-		for _, red := range swapRes.Redemptions {
-			contractTx, err := pgb.GetBTCTransactionByHash(red.ContractTx)
-			if err != nil {
-				continue
-			}
-			red.Value = contractTx.MsgTx().TxOut[red.ContractVout].Value
-			err = InsertBtcSwap(pgb.db, height, red)
-			if err != nil {
-				log.Errorf("InsertBTCSwap err: %v", err)
-				continue
-			}
-		}
-		for _, ref := range swapRes.Refunds {
-			contractTx, err := pgb.GetBTCTransactionByHash(ref.ContractTx)
-			if err != nil {
-				continue
-			}
-			ref.Value = contractTx.MsgTx().TxOut[ref.ContractVout].Value
-			err = InsertBtcSwap(pgb.db, height, ref)
-			log.Errorf("InsertBTCSwap err: %v", err)
-			continue
-		}
-	}
-	// update block synced status
-	var blockId int64
-	err = pgb.db.QueryRow(mutilchainquery.MakeUpsertBlockSimpleInfo(mutilchain.TYPEBTC), blockhash.String(),
-		height, msgBlock.Header.Timestamp.Unix(), true).Scan(&blockId)
-	if err != nil {
-		log.Errorf("Update BTC block synced status failed: %v", err)
-		return err
-	}
-	log.Debugf("Finish Sync BTC swap data with height: %d", height)
-	return nil
-}
-
-func (pgb *ChainDB) SyncLTCAtomicSwapData(height int64) error {
-	log.Debugf("Start Sync LTC swap data with height: %d", height)
-	blockhash, err := pgb.LtcClient.GetBlockHash(height)
-	if err != nil {
-		return err
-	}
-
-	msgBlock, err := pgb.LtcClient.GetBlock(blockhash)
-	if err != nil {
-		return err
-	}
-	// delete 24h before dump data from LTC swaps table
-	_, err = DeleteDumpMultichainSwapData(pgb.db, mutilchain.TYPELTC)
-	if err != nil {
-		return err
-	}
-	// Check all regular tree txns except coinbase.
-	for _, tx := range msgBlock.Transactions[1:] {
-		swapRes, err := ltctxhelper.MsgTxAtomicSwapsInfo(tx, nil, pgb.ltcChainParams)
-		if err != nil {
-			return err
-		}
-		if swapRes == nil || swapRes.Found == "" {
-			continue
-		}
-		for _, red := range swapRes.Redemptions {
-			contractTx, err := pgb.GetLTCTransactionByHash(red.ContractTx)
-			if err != nil {
-				continue
-			}
-			red.Value = contractTx.MsgTx().TxOut[red.ContractVout].Value
-			err = InsertLtcSwap(pgb.db, height, red)
-			if err != nil {
-				log.Errorf("InsertLTCSwap err: %v", err)
-				continue
-			}
-		}
-		for _, ref := range swapRes.Refunds {
-			contractTx, err := pgb.GetLTCTransactionByHash(ref.ContractTx)
-			if err != nil {
-				continue
-			}
-			ref.Value = contractTx.MsgTx().TxOut[ref.ContractVout].Value
-			err = InsertLtcSwap(pgb.db, height, ref)
-			log.Errorf("InsertLTCSwap err: %v", err)
-			continue
-		}
-	}
-	// update block synced status
-	var blockId int64
-	err = pgb.db.QueryRow(mutilchainquery.MakeUpsertBlockSimpleInfo(mutilchain.TYPELTC), blockhash.String(),
-		height, msgBlock.Header.Timestamp.Unix(), true).Scan(&blockId)
-	if err != nil {
-		log.Errorf("Update LTC block synced status failed: %v", err)
-		return err
-	}
-	log.Debugf("Finish Sync LTC swap data with height: %d", height)
-	return nil
-}
-
 func (pgb *ChainDB) SyncCoinAgeDataAllSet(height int64) {
 	pgb.coinAgeSync.Lock()
 	defer pgb.coinAgeSync.Unlock()
@@ -2105,48 +1916,4 @@ func (pgb *ChainDB) SyncCoinAgeBandsAndMcaDataOnHeight(height int64) error {
 	}
 
 	return nil
-}
-
-func CalcBTCBlockSubsidy(height int32, params *btcchaincfg.Params) btcutil.Amount {
-	const initialSubsidy = 50 * btcutil.SatoshiPerBitcoin // 50 BTC in satoshis
-	interval := int32(params.SubsidyReductionInterval)    // 210,000 on Bitcoin
-	halvings := uint(height / interval)
-	if halvings >= 64 {
-		return 0
-	}
-	return btcutil.Amount(initialSubsidy >> halvings)
-}
-
-func CalcLTCBlockSubsidy(height int32, params *ltcchaincfg.Params) ltcutil.Amount {
-	const initialSubsidy = 50 * ltcutil.SatoshiPerBitcoin // 50 BTC in satoshis
-	interval := int32(params.SubsidyReductionInterval)    // 210,000 on Bitcoin
-	halvings := uint(height / interval)
-	if halvings >= 64 {
-		return 0
-	}
-	return ltcutil.Amount(initialSubsidy >> halvings)
-}
-
-func SumBTCSubsidy(startHeight, endHeight int32, params *btcchaincfg.Params, excludeGenesis bool) btcutil.Amount {
-	var total btcutil.Amount
-	for h := startHeight; h <= endHeight; h++ {
-		// Nếu muốn "circulating supply", có thể bỏ qua genesis (height 0)
-		if excludeGenesis && h == 0 {
-			continue
-		}
-		total += CalcBTCBlockSubsidy(h, params)
-	}
-	return total
-}
-
-func SumLTCSubsidy(startHeight, endHeight int32, params *ltcchaincfg.Params, excludeGenesis bool) ltcutil.Amount {
-	var total ltcutil.Amount
-	for h := startHeight; h <= endHeight; h++ {
-		// Nếu muốn "circulating supply", có thể bỏ qua genesis (height 0)
-		if excludeGenesis && h == 0 {
-			continue
-		}
-		total += CalcLTCBlockSubsidy(h, params)
-	}
-	return total
 }
