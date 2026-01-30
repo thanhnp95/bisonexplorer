@@ -321,7 +321,7 @@ type ChainDB struct {
 	ChainDBDisabled        bool
 	SyncChainDBFlag        bool
 	XmrSyncFlag            bool
-	OkLinkAPIKey           string
+	ChainApisUrl           string
 	AddressSummarySyncing  bool
 	TreasurySummarySyncing bool
 	xmrApiServ             string
@@ -561,7 +561,7 @@ type ChainDBCfg struct {
 	ChainDBDisabled                   bool
 	SyncChainDBFlag                   bool
 	XmrSyncFlag                       bool
-	OkLinkAPIKey                      string
+	ChainApisUrl                      string
 	XmrTempAPIServ                    string
 }
 
@@ -851,7 +851,7 @@ func NewChainDB(ctx context.Context, cfg *ChainDBCfg, stakeDB *stakedb.StakeData
 		ChainDBDisabled:    cfg.ChainDBDisabled,
 		SyncChainDBFlag:    cfg.SyncChainDBFlag,
 		XmrSyncFlag:        cfg.XmrSyncFlag,
-		OkLinkAPIKey:       cfg.OkLinkAPIKey,
+		ChainApisUrl:       cfg.ChainApisUrl,
 		xmrApiServ:         cfg.XmrTempAPIServ,
 	}
 	chainDB.lastExplorerBlock.difficulties = make(map[int64]float64)
@@ -4615,10 +4615,9 @@ func (pgb *ChainDB) MutilchainAddressData(address string, limitN, offsetAddrOuts
 		//set client for api
 		externalapi.BTCClient = pgb.BtcClient
 		externalapi.LTCClient = pgb.LtcClient
-		var apiAddrInfo *externalapi.APIAddressInfo
-		// err := externalapi.GetAPIMutilchainAddressDetails(pgb.OkLinkAPIKey, address, chainType, limitN, offsetAddrOuts, pgb.MutilchainHeight(chainType), txnType)
+		apiAddrInfo, apiErr := externalapi.GetAPIMutilchainAddressDetails(pgb.ChainApisUrl, address, chainType, limitN, offsetAddrOuts, pgb.MutilchainHeight(chainType))
 		useAPI = true
-		if err != nil || apiAddrInfo == nil {
+		if apiErr != nil || apiAddrInfo == nil {
 			balance = &dbtypes.AddressBalance{
 				NumSpent:     0,
 				NumUnspent:   0,
@@ -5117,7 +5116,7 @@ func (pgb *ChainDB) AddressTransactionDetails(addr string, count, skip int64,
 }
 
 func (pgb *ChainDB) MutilchainAddressTransactionDetails(addr, chainType string, count, skip int64) (*apitypes.Address, error) {
-	apiAddrInfo, err := externalapi.GetAPIMutilchainAddressDetails(pgb.OkLinkAPIKey, addr, chainType, count, skip, pgb.MutilchainHeight(chainType))
+	apiAddrInfo, err := externalapi.GetAPIMutilchainAddressDetails(pgb.ChainApisUrl, addr, chainType, count, skip, pgb.MutilchainHeight(chainType))
 	if err != nil {
 		return &apitypes.Address{
 			Address:      addr,

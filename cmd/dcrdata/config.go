@@ -224,7 +224,7 @@ type config struct {
 	DisableChainDB bool   `long:"disablechaindb" description:"Disable mutilchain sync to DB" env:"DISABLED_CHAIN_DB"`
 	SyncChainDB    bool   `long:"syncchaindb" description:"Flag for syncing mutilchain to DB" env:"SYNC_CHAIN_DB"`
 	XmrSyncDB      bool   `long:"xmrsyncdb" description:"Flag for syncing Monero to DB" env:"XMR_SYNC_DB"`
-	OkLinkKey      string `long:"oklinkkey" description:"Setting up oklink api key" env:"OKLINK_KEY"`
+	ChainApiUrl    string `long:"chainapiurl" description:"Setting up chain apis url" env:"CHAIN_API_URL"`
 
 	// xmr temp api server
 	XmrTempServ string `long:"xmrtempserv" description:"Intermediate api server supports decode output and prove tx for Monero" env:"XMR_TEMP_SERV"`

@@ -217,7 +217,7 @@ func _main(ctx context.Context) error {
 		ChainDBDisabled:      cfg.DisableChainDB,
 		SyncChainDBFlag:      cfg.SyncChainDB,
 		XmrSyncFlag:          cfg.XmrSyncDB,
-		OkLinkAPIKey:         cfg.OkLinkKey,
+		ChainApisUrl:         cfg.ChainApiUrl,
 		XmrTempAPIServ:       cfg.XmrTempServ,
 	}
 

@@ -32,17 +32,18 @@ const (
 	BLockchainAPI  = "blockchain"
 	BlockcypherAPI = "blockcypher"
 	BitapsAPI      = "bitaps"
+	ChainAPI       = "chainapis"
 )
 
-var APIList = []string{BLockchainAPI, BitapsAPI}
+var APIList = []string{ChainAPI, BLockchainAPI, BitapsAPI}
 
-func GetAPIMutilchainAddressDetails(okLinkAPIKey, address string, chainType string, limit, offset, chainHeight int64) (*APIAddressInfo, error) {
+func GetAPIMutilchainAddressDetails(chainApiUrls, address string, chainType string, limit, offset, chainHeight int64) (*APIAddressInfo, error) {
 	for _, api := range APIList {
 		if chainType == mutilchain.TYPELTC && api == BLockchainAPI {
 			continue
 		}
 		//Get from API
-		addrInfo, err := GetAddressDetailsByAPIEnv(okLinkAPIKey, address, chainType, api, limit, offset, chainHeight)
+		addrInfo, err := GetAddressDetailsByAPIEnv(chainApiUrls, address, chainType, api, limit, offset, chainHeight)
 		if err == nil {
 			return addrInfo, nil
 		}
@@ -50,8 +51,10 @@ func GetAPIMutilchainAddressDetails(okLinkAPIKey, address string, chainType stri
 	return nil, fmt.Errorf("%s", "Get address info from all API failed")
 }
 
-func GetAddressDetailsByAPIEnv(okLinkAPIKey, address, chainType, apiType string, limit, offset, chainHeight int64) (*APIAddressInfo, error) {
+func GetAddressDetailsByAPIEnv(chainApiUrls, address, chainType, apiType string, limit, offset, chainHeight int64) (*APIAddressInfo, error) {
 	switch apiType {
+	case ChainAPI:
+		return GetChainAddressInfoAPI(chainApiUrls, address, chainType, limit, offset)
 	case BLockchainAPI:
 		return GetBlockchainInfoAddressInfoAPI(address, chainType, limit, offset, chainHeight)
 	case BitapsAPI:
